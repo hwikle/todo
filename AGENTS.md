@@ -23,9 +23,10 @@ This repository is a Markdown-first task system. Markdown under `todos/` and
 
 Tasks and subtasks share the same recursive structure in the current Markdown
 format. Category comes from the filename. In the canonical JSON model, priority
-is an optional task property using `schema/task-priority.schema.json`; the
-second-level Markdown headings are a rendered grouping of task priorities.
-Tasks without a priority render in an unprioritized section.
+is an optional task property using `schema/priority.schema.json`. Categories are
+defined independently using `schema/category.schema.json`, and TODO-list
+category memberships associate them with tasks. Markdown filenames, headings,
+and hierarchy are view concerns rather than schema semantics.
 
 An optional due date is stored in the task comment as `due:YYYY-MM-DD` and must
 also have a configured `due-kind:slug`. An optional local `time:HH:MM` is valid
@@ -62,9 +63,10 @@ bin/todo complete abc123def456
 ## Verification
 
 The repository is temporarily between storage models. The JSON schemas describe
-canonical task definitions with task-level `priority`, `dependencies`, and
-`parents`, while the current Markdown validator and generator still emit
-recursive `subtasks` and derive priority from headings.
+canonical task definitions with task-level `priority` and `dependencies`, plus
+separate category definitions and memberships. The current Markdown validator
+and generator still emit recursive `subtasks` and derive category and priority
+from filenames and headings.
 
 During this transition, do not run `bin/validate-todos`, `bin/todo generate`, or
 `bin/create-daily-todo`. For schema-only changes, verify JSON syntax and local

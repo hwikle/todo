@@ -8,8 +8,7 @@
     "id",
     "name",
     "completed",
-    "dependencies",
-    "parents"
+    "dependencies"
   ],
   "properties": {
     "id": {
@@ -24,20 +23,12 @@
       "type": "string"
     },
     "priority": {
-      "$ref": "task-priority.schema.json"
+      "$ref": "priority.schema.json"
     },
     "completed": {
       "type": "boolean"
     },
     "dependencies": {
-      "type": "array",
-      "uniqueItems": true,
-      "items": {
-        "type": "string",
-        "pattern": "^[0-9a-f]{12}$"
-      }
-    },
-    "parents": {
       "type": "array",
       "uniqueItems": true,
       "items": {

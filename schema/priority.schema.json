@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://local.invalid/todo/task-priority.schema.json",
-  "title": "Task priority",
+  "$id": "https://local.invalid/todo/priority.schema.json",
+  "title": "Priority",
   "type": "string",
   "enum": ["must", "should", "could"]
 }

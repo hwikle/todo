@@ -4,7 +4,7 @@
   "title": "TODO list",
   "type": "object",
   "additionalProperties": false,
-  "required": ["date", "tasks", "sections"],
+  "required": ["date", "tasks", "categories", "category_memberships"],
   "properties": {
     "date": {
       "type": "string",
@@ -16,15 +16,21 @@
         "$ref": "task.schema.json"
       }
     },
-    "sections": {
+    "categories": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/section"
+        "$ref": "category.schema.json"
+      }
+    },
+    "category_memberships": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/category_membership"
       }
     }
   },
   "$defs": {
-    "section": {
+    "category_membership": {
       "type": "object",
       "additionalProperties": false,
       "required": ["category", "tasks"],
