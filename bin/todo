@@ -36,36 +36,69 @@ class TaskSchemaValidator:
     """Validate task objects using the JSON Schema keywords used by this repo."""
 
     def __init__(self, path: Path) -> None:
-        try:
-            self.schema = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError) as exc:
-            raise TodoError(f"Cannot load task schema {path}: {exc}") from exc
-        self.path = path
+        self.path = path.resolve()
+        self.schema_dir = self.path.parent
+        self.documents: dict[Path, dict[str, Any]] = {}
+        self.schema = self.load_document(self.path)
 
-    def resolve(self, reference: str) -> dict[str, Any]:
-        if not reference.startswith("#/"):
-            raise TodoError(f"{self.path}: only local JSON Schema references are supported")
-        current: Any = self.schema
-        for raw_part in reference[2:].split("/"):
+    def load_document(self, path: Path) -> dict[str, Any]:
+        resolved = path.resolve()
+        if not resolved.is_relative_to(self.schema_dir) or resolved.suffix != ".json":
+            raise TodoError(f"Schema reference must stay within {self.schema_dir}")
+        if resolved not in self.documents:
+            try:
+                document = json.loads(resolved.read_text())
+            except (OSError, json.JSONDecodeError) as exc:
+                raise TodoError(f"Cannot load task schema {resolved}: {exc}") from exc
+            if not isinstance(document, dict):
+                raise TodoError(f"{resolved}: schema document must be an object")
+            self.documents[resolved] = document
+        return self.documents[resolved]
+
+    def resolve(self, reference: str, document_path: Path) -> tuple[dict[str, Any], Path]:
+        if "://" in reference:
+            raise TodoError(f"{document_path}: network schema references are not supported")
+        file_part, separator, fragment = reference.partition("#")
+        if file_part:
+            relative = Path(file_part)
+            if relative.is_absolute():
+                raise TodoError(f"{document_path}: absolute schema references are not supported")
+            target_path = (document_path.parent / relative).resolve()
+        else:
+            target_path = document_path
+        current: Any = self.load_document(target_path)
+        if not separator or not fragment:
+            return current, target_path
+        if not fragment.startswith("/"):
+            raise TodoError(f"{document_path}: unsupported schema fragment in {reference!r}")
+        for raw_part in fragment[1:].split("/"):
             part = raw_part.replace("~1", "/").replace("~0", "~")
             if not isinstance(current, dict) or part not in current:
-                raise TodoError(f"{self.path}: unresolved JSON Schema reference {reference!r}")
+                raise TodoError(f"{document_path}: unresolved JSON Schema reference {reference!r}")
             current = current[part]
         if not isinstance(current, dict):
-            raise TodoError(f"{self.path}: JSON Schema reference {reference!r} is not an object")
-        return current
+            raise TodoError(f"{document_path}: JSON Schema reference {reference!r} is not an object")
+        return current, target_path
 
-    def validate(self, value: Any, schema: Optional[dict[str, Any]] = None, location: str = "task") -> None:
+    def validate(
+        self,
+        value: Any,
+        schema: Optional[dict[str, Any]] = None,
+        location: str = "task",
+        document_path: Optional[Path] = None,
+    ) -> None:
         rule = self.schema if schema is None else schema
+        current_document = self.path if document_path is None else document_path
         supported = {
             "$schema", "$id", "$ref", "$defs", "title", "type", "additionalProperties",
             "required", "properties", "pattern", "format", "minLength", "items",
         }
         unsupported = set(rule) - supported
         if unsupported:
-            raise TodoError(f"{self.path}: unsupported JSON Schema keywords {sorted(unsupported)}")
+            raise TodoError(f"{current_document}: unsupported JSON Schema keywords {sorted(unsupported)}")
         if "$ref" in rule:
-            self.validate(value, self.resolve(rule["$ref"]), location)
+            resolved, resolved_path = self.resolve(rule["$ref"], current_document)
+            self.validate(value, resolved, location, resolved_path)
             return
 
         expected = rule.get("type")
@@ -91,10 +124,14 @@ class TaskSchemaValidator:
                     raise TodoError(f"{location}: schema rejects fields {sorted(extras)}")
             for name, child in value.items():
                 if name in properties:
-                    self.validate(child, properties[name], f"{location}.{name}")
+                    self.validate(
+                        child, properties[name], f"{location}.{name}", current_document
+                    )
         elif expected == "array" and "items" in rule:
             for index, child in enumerate(value):
-                self.validate(child, rule["items"], f"{location}[{index}]")
+                self.validate(
+                    child, rule["items"], f"{location}[{index}]", current_document
+                )
         elif expected == "string":
             if len(value) < rule.get("minLength", 0):
                 raise TodoError(f"{location}: schema minimum length is {rule['minLength']}")
@@ -106,7 +143,9 @@ class TaskSchemaValidator:
                 except ValueError as exc:
                     raise TodoError(f"{location}: value is not a valid schema date") from exc
             elif rule.get("format") not in {None, "date"}:
-                raise TodoError(f"{self.path}: unsupported JSON Schema format {rule['format']!r}")
+                raise TodoError(
+                    f"{current_document}: unsupported JSON Schema format {rule['format']!r}"
+                )
 
 
 @dataclass
@@ -448,8 +487,10 @@ def generate(date: str) -> None:
         print(f"Today's TODO directory already exists: {target}")
         return
 
-    target.mkdir(parents=True, exist_ok=True)
     prior_dir = previous_day(date)
+    if prior_dir:
+        validate_paths([prior_dir], fix=True)
+    target.mkdir(parents=True, exist_ok=True)
     carried: dict[str, tuple[str, dict[str, list[Task]]]] = {}
     if prior_dir:
         for source in sorted(prior_dir.glob("*.md")):

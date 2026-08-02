@@ -24,7 +24,8 @@ class SchemaValidationTest(unittest.TestCase):
         self.invoke("bin/create-daily-todo", "--date", "2042-01-02")
         self.invoke(
             "bin/todo", "add", "--date", "2042-01-02", "--type", "work",
-            "--priority", "Must", "Schema-backed task",
+            "--priority", "Must", "--due-date", "2042-01-05", "--due-time",
+            "09:30", "--due-kind", "hard", "Schema-backed task",
         )
 
     def tearDown(self) -> None:
@@ -51,6 +52,18 @@ class SchemaValidationTest(unittest.TestCase):
         result = self.invoke("bin/validate-todos", check=False)
         self.assertEqual(result.returncode, 2)
         self.assertIn("schema requires fields", result.stderr)
+
+    def test_generation_validates_due_schema_before_writing(self) -> None:
+        path = self.repo / "schema" / "due.schema.json"
+        schema = json.loads(path.read_text())
+        schema["required"].append("schemaProbe")
+        path.write_text(json.dumps(schema, indent=2) + "\n")
+        result = self.invoke(
+            "bin/create-daily-todo", "--date", "2042-01-03", check=False
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("schema requires fields", result.stderr)
+        self.assertFalse((self.repo / "todos" / "2042-01-03").exists())
 
     def test_fix_assigns_id_before_schema_validation(self) -> None:
         path = self.repo / "todos" / "2042-01-02" / "work.md"

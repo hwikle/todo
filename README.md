@@ -17,6 +17,7 @@ config/priorities.conf         Flexible ordered priorities
 config/due-kinds.conf          Flexible deadline classifications
 launchd/*.plist                Optional macOS scheduler template
 schema/task.schema.json        Recursive task data contract
+schema/due.schema.json         Optional due-date data contract
 todos/YYYY-MM-DD/*.md          Authoritative daily checklists
 ```
 
@@ -72,9 +73,10 @@ bin/validate-todos --fix
 
 The validator is independent of every scheduler. It parses the authoritative
 Markdown into recursive task objects, validates each object directly against
-`schema/task.schema.json`, then applies repository rules for IDs, hierarchy,
-and configured deadline kinds. `--fix` assigns missing task IDs before schema
-validation and writes the repaired Markdown.
+`schema/task.schema.json` and its relative `schema/due.schema.json` reference,
+then applies repository rules for IDs, hierarchy, and configured deadline kinds.
+`--fix` assigns missing task IDs before schema validation and writes the repaired
+Markdown.
 
 Add tasks:
 
@@ -118,6 +120,8 @@ reference a configured due kind. Times are interpreted in the Mac's local time.
 ## Carry-forward rules
 
 - Existing files for today are never overwritten by generation.
+- The previous day is schema-validated before a new directory is created.
+- Generated files are schema-validated again after they are written.
 - Unchecked tasks carry into the same category and priority.
 - Descriptions and unchecked subtasks carry with their parent.
 - Completed tasks and completed subtasks remain in historical files.

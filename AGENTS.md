@@ -72,6 +72,10 @@ python3 tests/test_schema_validation.py
 task objects, validates them directly against `schema/task.schema.json`, and
 also enforces configured deadline kinds and hierarchy rules.
 
+Generation validates the previous daily directory against both the task schema
+and referenced `schema/due.schema.json` before creating the new directory, then
+validates the generated files again after writing them.
+
 When changing the scheduler template, also run:
 
 ```text
