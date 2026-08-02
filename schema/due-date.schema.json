@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/todo/due-date.schema.json",
+  "title": "TODO due date",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["year"],
+  "properties": {
+    "year": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9999
+    },
+    "month": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "day": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 31
+    },
+    "time": {
+      "type": "string",
+      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+    }
+  },
+  "dependentRequired": {
+    "day": ["month"],
+    "time": ["month", "day"]
+  }
+}

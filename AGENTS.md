@@ -59,7 +59,16 @@ bin/todo complete abc123def456
 
 ## Verification
 
-After changing task data or implementation, run:
+The repository is temporarily between storage models. The JSON schemas describe
+canonical task definitions with `dependencies` and `parents`, while the current
+Markdown validator and generator still emit recursive `subtasks`.
+
+During this transition, do not run `bin/validate-todos`, `bin/todo generate`, or
+`bin/create-daily-todo`. For schema-only changes, verify JSON syntax and local
+references directly. The validation and conversion phase must restore the full
+verification commands before scheduling is enabled.
+
+Legacy verification commands, to be restored after migration, are:
 
 ```text
 bin/validate-todos --fix
@@ -67,14 +76,6 @@ bin/todo list --date YYYY-MM-DD
 python3 tests/test_generation_independent.py
 python3 tests/test_schema_validation.py
 ```
-
-`bin/validate-todos` is scheduler-independent. It parses Markdown into recursive
-task objects, validates them directly against `schema/task.schema.json`, and
-also enforces configured deadline kinds and hierarchy rules.
-
-Generation validates the previous daily directory against both the task schema
-and referenced `schema/due.schema.json` before creating the new directory, then
-validates the generated files again after writing them.
 
 When changing the scheduler template, also run:
 

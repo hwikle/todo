@@ -16,8 +16,9 @@ config/task-types.conf         Flexible category definitions
 config/priorities.conf         Flexible ordered priorities
 config/due-kinds.conf          Flexible deadline classifications
 launchd/*.plist                Optional macOS scheduler template
-schema/task.schema.json        Recursive task data contract
-schema/due.schema.json         Optional due-date data contract
+schema/due-date.schema.json    Partial-precision deadline contract
+schema/task.schema.json        Canonical task definition contract
+schema/todo-list.schema.json   Canonical daily-list contract
 todos/YYYY-MM-DD/*.md          Authoritative daily checklists
 ```
 
@@ -71,12 +72,10 @@ bin/validate-todos
 bin/validate-todos --fix
 ```
 
-The validator is independent of every scheduler. It parses the authoritative
-Markdown into recursive task objects, validates each object directly against
-`schema/task.schema.json` and its relative `schema/due.schema.json` reference,
-then applies repository rules for IDs, hierarchy, and configured deadline kinds.
-`--fix` assigns missing task IDs before schema validation and writes the repaired
-Markdown.
+> **Schema transition:** The schemas now describe the forthcoming canonical JSON
+> model. The current Markdown validator and generator still emit the legacy
+> recursive `subtasks` model, so do not run them until the validation and
+> conversion phase is complete.
 
 Add tasks:
 

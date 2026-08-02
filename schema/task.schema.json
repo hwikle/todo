@@ -2,35 +2,56 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://local.invalid/todo/task.schema.json",
   "title": "TODO task",
-  "$ref": "#/$defs/task",
-  "$defs": {
-    "task": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "name", "completed", "subtasks"],
-      "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{12}$"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "description": {
-          "type": "string"
-        },
-        "due": {
-          "$ref": "due.schema.json"
-        },
-        "completed": {
-          "type": "boolean"
-        },
-        "subtasks": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/task" }
-        }
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "completed",
+    "dependencies",
+    "parents"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{12}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "completed": {
+      "type": "boolean"
+    },
+    "dependencies": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{12}$"
       }
+    },
+    "parents": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{12}$"
+      }
+    },
+    "due": {
+      "$ref": "due-date.schema.json"
+    },
+    "deadline_kind": {
+      "type": "string",
+      "enum": ["hard", "soft"]
     }
+  },
+  "dependentRequired": {
+    "due": ["deadline_kind"],
+    "deadline_kind": ["due"]
   }
 }
