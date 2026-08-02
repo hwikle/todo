@@ -17,6 +17,7 @@ config/priorities.conf         Flexible ordered priorities
 config/due-kinds.conf          Flexible deadline classifications
 launchd/*.plist                Optional macOS scheduler template
 schema/due-date.schema.json    Partial-precision deadline contract
+schema/task-priority.schema.json  Must/Should/Could task priority contract
 schema/task.schema.json        Canonical task definition contract
 schema/todo-list.schema.json   Canonical daily-list contract
 todos/YYYY-MM-DD/*.md          Authoritative daily checklists
@@ -76,6 +77,11 @@ bin/validate-todos --fix
 > model. The current Markdown validator and generator still emit the legacy
 > recursive `subtasks` model, so do not run them until the validation and
 > conversion phase is complete.
+
+In the canonical model, priority is an optional property of each task, not of a
+section. The Markdown view groups tasks within each category file under Must,
+Should, and Could headings. Tasks without a priority render in an unprioritized
+section.
 
 Add tasks:
 

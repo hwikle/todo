@@ -23,6 +23,9 @@
     "description": {
       "type": "string"
     },
+    "priority": {
+      "$ref": "task-priority.schema.json"
+    },
     "completed": {
       "type": "boolean"
     },
