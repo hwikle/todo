@@ -18,7 +18,7 @@ class IndependentGenerationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="todo-generation-test-") as temporary:
             isolated = Path(temporary) / "todo"
             isolated.mkdir()
-            for name in ("bin", "config", "backlog"):
+            for name in ("bin", "config", "schema", "backlog"):
                 source = ROOT / name
                 destination = isolated / name
                 if source.is_dir():

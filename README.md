@@ -11,6 +11,7 @@ backlog/someday.md             Persistent unprioritized ideas
 bin/todo                       Task CLI and validator
 bin/create-daily-todo          Daily generator entry point
 bin/todo-config                Configuration helper entry point
+bin/validate-todos             Standalone schema validator
 config/task-types.conf         Flexible category definitions
 config/priorities.conf         Flexible ordered priorities
 config/due-kinds.conf          Flexible deadline classifications
@@ -65,8 +66,15 @@ Create or validate today's files:
 
 ```text
 bin/create-daily-todo
-bin/todo validate --fix
+bin/validate-todos
+bin/validate-todos --fix
 ```
+
+The validator is independent of every scheduler. It parses the authoritative
+Markdown into recursive task objects, validates each object directly against
+`schema/task.schema.json`, then applies repository rules for IDs, hierarchy,
+and configured deadline kinds. `--fix` assigns missing task IDs before schema
+validation and writes the repaired Markdown.
 
 Add tasks:
 
@@ -120,6 +128,7 @@ Run the scheduler-independence regression test with:
 
 ```text
 python3 tests/test_generation_independent.py
+python3 tests/test_schema_validation.py
 ```
 
 ## Optional launchd schedule (5:55 AM)

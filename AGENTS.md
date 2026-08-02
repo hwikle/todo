@@ -62,10 +62,15 @@ bin/todo complete abc123def456
 After changing task data or implementation, run:
 
 ```text
-bin/todo validate --fix
+bin/validate-todos --fix
 bin/todo list --date YYYY-MM-DD
 python3 tests/test_generation_independent.py
+python3 tests/test_schema_validation.py
 ```
+
+`bin/validate-todos` is scheduler-independent. It parses Markdown into recursive
+task objects, validates them directly against `schema/task.schema.json`, and
+also enforces configured deadline kinds and hierarchy rules.
 
 When changing the scheduler template, also run:
 

@@ -11,12 +11,13 @@ import sys
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 
 ROOT = Path(__file__).resolve().parent.parent
 TYPES_FILE = ROOT / "config" / "task-types.conf"
 PRIORITIES_FILE = ROOT / "config" / "priorities.conf"
+SCHEMA_FILE = ROOT / "schema" / "task.schema.json"
 TODOS_DIR = ROOT / "todos"
 TASK_RE = re.compile(
     r"^(?P<indent>\s*)- \[(?P<check>[ xX])\] (?P<name>.+?)"
@@ -29,6 +30,83 @@ SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 class TodoError(Exception):
     pass
+
+
+class TaskSchemaValidator:
+    """Validate task objects using the JSON Schema keywords used by this repo."""
+
+    def __init__(self, path: Path) -> None:
+        try:
+            self.schema = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            raise TodoError(f"Cannot load task schema {path}: {exc}") from exc
+        self.path = path
+
+    def resolve(self, reference: str) -> dict[str, Any]:
+        if not reference.startswith("#/"):
+            raise TodoError(f"{self.path}: only local JSON Schema references are supported")
+        current: Any = self.schema
+        for raw_part in reference[2:].split("/"):
+            part = raw_part.replace("~1", "/").replace("~0", "~")
+            if not isinstance(current, dict) or part not in current:
+                raise TodoError(f"{self.path}: unresolved JSON Schema reference {reference!r}")
+            current = current[part]
+        if not isinstance(current, dict):
+            raise TodoError(f"{self.path}: JSON Schema reference {reference!r} is not an object")
+        return current
+
+    def validate(self, value: Any, schema: Optional[dict[str, Any]] = None, location: str = "task") -> None:
+        rule = self.schema if schema is None else schema
+        supported = {
+            "$schema", "$id", "$ref", "$defs", "title", "type", "additionalProperties",
+            "required", "properties", "pattern", "format", "minLength", "items",
+        }
+        unsupported = set(rule) - supported
+        if unsupported:
+            raise TodoError(f"{self.path}: unsupported JSON Schema keywords {sorted(unsupported)}")
+        if "$ref" in rule:
+            self.validate(value, self.resolve(rule["$ref"]), location)
+            return
+
+        expected = rule.get("type")
+        matches = {
+            "object": isinstance(value, dict),
+            "array": isinstance(value, list),
+            "string": isinstance(value, str),
+            "boolean": isinstance(value, bool),
+            "integer": isinstance(value, int) and not isinstance(value, bool),
+        }
+        if expected and not matches.get(expected, False):
+            raise TodoError(f"{location}: schema requires {expected}, got {type(value).__name__}")
+
+        if expected == "object":
+            required = rule.get("required", [])
+            missing = [name for name in required if name not in value]
+            if missing:
+                raise TodoError(f"{location}: schema requires fields {missing}")
+            properties = rule.get("properties", {})
+            if rule.get("additionalProperties") is False:
+                extras = set(value) - set(properties)
+                if extras:
+                    raise TodoError(f"{location}: schema rejects fields {sorted(extras)}")
+            for name, child in value.items():
+                if name in properties:
+                    self.validate(child, properties[name], f"{location}.{name}")
+        elif expected == "array" and "items" in rule:
+            for index, child in enumerate(value):
+                self.validate(child, rule["items"], f"{location}[{index}]")
+        elif expected == "string":
+            if len(value) < rule.get("minLength", 0):
+                raise TodoError(f"{location}: schema minimum length is {rule['minLength']}")
+            if "pattern" in rule and not re.fullmatch(rule["pattern"], value):
+                raise TodoError(f"{location}: value does not match schema pattern")
+            if rule.get("format") == "date":
+                try:
+                    dt.date.fromisoformat(value)
+                except ValueError as exc:
+                    raise TodoError(f"{location}: value is not a valid schema date") from exc
+            elif rule.get("format") not in {None, "date"}:
+                raise TodoError(f"{self.path}: unsupported JSON Schema format {rule['format']!r}")
 
 
 @dataclass
@@ -87,6 +165,22 @@ class Task:
             due_time=self.due_time,
             due_kind=self.due_kind,
         )
+
+
+def task_to_dict(task: Task) -> dict[str, Any]:
+    value: dict[str, Any] = {
+        "id": task.task_id,
+        "name": task.name,
+        "completed": task.completed,
+        "subtasks": [task_to_dict(child) for child in task.subtasks],
+    }
+    if task.description:
+        value["description"] = "\n".join(task.description)
+    if task.due_date:
+        value["due"] = {"date": task.due_date, "kind": task.due_kind}
+        if task.due_time:
+            value["due"]["time"] = task.due_time
+    return value
 
 
 def config_lines(path: Path) -> Iterable[tuple[int, str]]:
@@ -391,6 +485,7 @@ def generate(date: str) -> None:
 
 def validate_paths(paths: list[Path], fix: bool) -> None:
     priorities = [priority.label for priority in load_priorities()]
+    schema = TaskSchemaValidator(SCHEMA_FILE)
     targets: list[Path] = []
     for path in paths:
         targets.extend(sorted(path.rglob("*.md")) if path.is_dir() else [path])
@@ -399,8 +494,11 @@ def validate_paths(paths: list[Path], fix: bool) -> None:
             tasks = parse_backlog(path)
             ensure_valid_tree(tasks, path)
             changed = False
-            for task in tasks:
-                changed = task.ensure_ids() or changed
+            if fix:
+                for task in tasks:
+                    changed = task.ensure_ids() or changed
+            for index, task in enumerate(tasks):
+                schema.validate(task_to_dict(task), location=f"{path}:task[{index}]")
             if fix and changed:
                 path.write_text(render_backlog(path.stem.title(), tasks))
         else:
@@ -408,7 +506,12 @@ def validate_paths(paths: list[Path], fix: bool) -> None:
             ensure_valid_tree(
                 [task for tasks in sections.values() for task in tasks], path
             )
-            changed = ensure_all_ids(sections)
+            changed = ensure_all_ids(sections) if fix else False
+            for heading, tasks in sections.items():
+                for index, task in enumerate(tasks):
+                    schema.validate(
+                        task_to_dict(task), location=f"{path}:{heading}[{index}]"
+                    )
             if fix and changed:
                 path.write_text(render_daily(label.split(" — ")[0], path.parent.name, sections, priorities))
     print(f"Validated {len(targets)} Markdown file(s)" + (" and assigned missing IDs" if fix else ""))
@@ -584,23 +687,8 @@ def export_json(date: str) -> None:
     for path in sorted((TODOS_DIR / date).glob("*.md")):
         label, sections = parse_daily(path)
 
-        def encode(task: Task) -> dict:
-            value = {
-                "id": task.task_id,
-                "name": task.name,
-                "completed": task.completed,
-                "subtasks": [encode(child) for child in task.subtasks],
-            }
-            if task.description:
-                value["description"] = "\n".join(task.description)
-            if task.due_date:
-                value["due"] = {"date": task.due_date, "kind": task.due_kind}
-                if task.due_time:
-                    value["due"]["time"] = task.due_time
-            return value
-
         output.append({"type": path.stem, "label": label, "priorities": {
-            heading: [encode(task) for task in tasks] for heading, tasks in sections.items()
+            heading: [task_to_dict(task) for task in tasks] for heading, tasks in sections.items()
         }})
     print(json.dumps(output, indent=2))
 
