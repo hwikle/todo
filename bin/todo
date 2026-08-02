@@ -19,8 +19,8 @@ TYPES_FILE = ROOT / "config" / "task-types.conf"
 PRIORITIES_FILE = ROOT / "config" / "priorities.conf"
 TODOS_DIR = ROOT / "todos"
 TASK_RE = re.compile(
-    r"^(?P<indent>\s*)- \[(?P<check>[ xX])\] \*\*(?P<name>.+?)\*\*"
-    r"(?:\s+<!-- task:(?P<id>[0-9a-f]{12}) -->)?\s*$"
+    r"^(?P<indent>\s*)- \[(?P<check>[ xX])\] (?P<name>.+?)"
+    r"(?:\s+<!--\s*(?P<meta>.*?)\s*-->)?\s*$"
 )
 CHECKBOX_RE = re.compile(r"^\s*- \[[ xX]\]")
 HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
@@ -45,12 +45,22 @@ class Priority:
 
 
 @dataclass
+class DueKind:
+    weight: int
+    slug: str
+    label: str
+
+
+@dataclass
 class Task:
     name: str
     completed: bool = False
     task_id: Optional[str] = None
     description: list[str] = field(default_factory=list)
     subtasks: list["Task"] = field(default_factory=list)
+    due_date: Optional[str] = None
+    due_time: Optional[str] = None
+    due_kind: Optional[str] = None
 
     def ensure_ids(self) -> bool:
         changed = False
@@ -73,6 +83,9 @@ class Task:
             task_id=self.task_id,
             description=list(self.description),
             subtasks=[kept for child in self.subtasks if (kept := child.carry()) is not None],
+            due_date=self.due_date,
+            due_time=self.due_time,
+            due_kind=self.due_kind,
         )
 
 
@@ -127,6 +140,30 @@ def load_priorities() -> list[Priority]:
     return sorted(result, key=lambda priority: priority.order)
 
 
+def load_due_kinds() -> list[DueKind]:
+    path = ROOT / "config" / "due-kinds.conf"
+    result: list[DueKind] = []
+    seen_weights: set[int] = set()
+    seen_slugs: set[str] = set()
+    for number, value in config_lines(path):
+        parts = [part.strip() for part in value.split("|")]
+        if len(parts) != 3:
+            raise TodoError(f"{path}:{number}: expected weight|slug|label")
+        try:
+            weight = int(parts[0])
+        except ValueError as exc:
+            raise TodoError(f"{path}:{number}: weight must be an integer") from exc
+        slug, label = parts[1:]
+        if not SLUG_RE.fullmatch(slug) or not label:
+            raise TodoError(f"{path}:{number}: invalid slug or empty label")
+        if weight in seen_weights or slug in seen_slugs:
+            raise TodoError(f"{path}:{number}: duplicate weight or slug")
+        seen_weights.add(weight)
+        seen_slugs.add(slug)
+        result.append(DueKind(weight, slug, label))
+    return sorted(result, key=lambda item: item.weight, reverse=True)
+
+
 def new_id() -> str:
     return uuid.uuid4().hex[:12]
 
@@ -138,10 +175,24 @@ def parse_tasks(lines: list[str], source: Path) -> list[Task]:
         match = TASK_RE.match(line)
         if match:
             indent = len(match.group("indent").expandtabs(2))
+            metadata: dict[str, str] = {}
+            for token in (match.group("meta") or "").split():
+                if ":" not in token:
+                    raise TodoError(f"{source}:{line_number}: malformed task metadata {token!r}")
+                key, value = token.split(":", 1)
+                if key in metadata:
+                    raise TodoError(f"{source}:{line_number}: duplicate metadata key {key!r}")
+                metadata[key] = value
+            unknown = set(metadata) - {"task", "due", "time", "due-kind"}
+            if unknown:
+                raise TodoError(f"{source}:{line_number}: unknown task metadata {sorted(unknown)}")
             task = Task(
                 name=match.group("name").strip(),
                 completed=match.group("check").lower() == "x",
-                task_id=match.group("id"),
+                task_id=metadata.get("task"),
+                due_date=metadata.get("due"),
+                due_time=metadata.get("time"),
+                due_kind=metadata.get("due-kind"),
             )
             while stack and stack[-1][0] >= indent:
                 stack.pop()
@@ -156,7 +207,7 @@ def parse_tasks(lines: list[str], source: Path) -> list[Task]:
             )
         elif stack:
             stripped = line.strip()
-            if stripped:
+            if stripped and not (stack[-1][1].due_date and stripped.startswith("Due: ")):
                 stack[-1][1].description.append(stripped)
     return roots
 
@@ -186,12 +237,34 @@ def parse_backlog(path: Path) -> list[Task]:
     return parse_tasks(lines[1:] if lines and lines[0].startswith("# ") else lines, path)
 
 
+def due_display(task: Task) -> Optional[str]:
+    if not task.due_date:
+        return None
+    parsed = dt.date.fromisoformat(task.due_date)
+    value = f"{parsed.strftime('%B')} {parsed.day}, {parsed.year}"
+    if task.due_time:
+        parsed_time = dt.time.fromisoformat(task.due_time)
+        value += f" at {parsed_time.strftime('%I:%M %p').lstrip('0')}"
+    kinds = {kind.slug: kind.label for kind in load_due_kinds()}
+    return f"Due: {value} — {kinds[task.due_kind]}."
+
+
 def render_task(task: Task, depth: int = 0) -> list[str]:
-    indent = "  " * depth
+    indent = "    " * depth
     mark = "x" if task.completed else " "
-    lines = [f"{indent}- [{mark}] **{task.name}** <!-- task:{task.task_id} -->"]
+    metadata = [f"task:{task.task_id}"]
+    if task.due_date:
+        metadata.append(f"due:{task.due_date}")
+        if task.due_time:
+            metadata.append(f"time:{task.due_time}")
+        metadata.append(f"due-kind:{task.due_kind}")
+    lines = [f"{indent}- [{mark}] {task.name} <!-- {' '.join(metadata)} -->"]
+    continuation = indent + "    "
+    display = due_display(task)
+    if display:
+        lines.append(f"{continuation}{display}")
     for description_line in task.description:
-        lines.append(f"{indent}  {description_line}")
+        lines.append(f"{continuation}{description_line}")
     for child in task.subtasks:
         lines.extend(render_task(child, depth + 1))
     return lines
@@ -219,14 +292,34 @@ def render_backlog(label: str, tasks: list[Task]) -> str:
 
 def ensure_valid_tree(tasks: Iterable[Task], source: Path) -> None:
     ids: set[str] = set()
+    due_kinds = {kind.slug for kind in load_due_kinds()}
 
     def visit(task: Task) -> None:
+        if not task.name or "<!--" in task.name or "\n" in task.name:
+            raise TodoError(f"{source}: invalid task name {task.name!r}")
         if task.completed and task.has_unchecked_descendant():
             raise TodoError(f"{source}: completed task {task.name!r} has an unchecked subtask")
         if task.task_id:
+            if not re.fullmatch(r"[0-9a-f]{12}", task.task_id):
+                raise TodoError(f"{source}: invalid task id {task.task_id!r}")
             if task.task_id in ids:
                 raise TodoError(f"{source}: duplicate task id {task.task_id}")
             ids.add(task.task_id)
+        due_values = (task.due_date, task.due_time, task.due_kind)
+        if any(due_values) and not task.due_date:
+            raise TodoError(f"{source}: task {task.name!r} has due metadata without a date")
+        if task.due_date:
+            try:
+                dt.date.fromisoformat(task.due_date)
+            except ValueError as exc:
+                raise TodoError(f"{source}: task {task.name!r} has an invalid due date") from exc
+            if not task.due_kind:
+                raise TodoError(f"{source}: task {task.name!r} needs a due kind")
+            if task.due_kind not in due_kinds:
+                raise TodoError(f"{source}: unknown due kind {task.due_kind!r}")
+        if task.due_time:
+            if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", task.due_time):
+                raise TodoError(f"{source}: task {task.name!r} has an invalid due time")
         for child in task.subtasks:
             visit(child)
 
@@ -345,17 +438,37 @@ def find_task(task_id: str, date: str) -> tuple[Path, Optional[str], str, dict[s
 def add_task(args: argparse.Namespace) -> None:
     date = args.date or dt.date.today().isoformat()
     types = {item.slug: item for item in load_types()}
+    if args.due_time and not args.due_date:
+        raise TodoError("--due-time requires --due-date")
+    if args.due_date and not args.due_kind:
+        raise TodoError("--due-date requires --due-kind")
+    if args.due_kind and not args.due_date:
+        raise TodoError("--due-kind requires --due-date")
+    if args.due_kind and args.due_kind not in {kind.slug for kind in load_due_kinds()}:
+        raise TodoError(f"Unknown due kind {args.due_kind!r}; use 'todo due-kinds'")
+
+    def candidate() -> Task:
+        return Task(
+            args.name,
+            task_id=new_id(),
+            description=[args.description] if args.description else [],
+            due_date=args.due_date,
+            due_time=args.due_time,
+            due_kind=args.due_kind,
+        )
+
     if args.parent:
         path, _heading, label, sections, parent = find_task(args.parent, date)
-        candidate = Task(args.name, task_id=new_id(), description=[args.description] if args.description else [])
+        new_task = candidate()
+        ensure_valid_tree([new_task], path)
         if any(child.name.casefold() == args.name.casefold() for child in parent.subtasks):
             raise TodoError(f"Duplicate subtask name under {parent.name!r}")
-        parent.subtasks.append(candidate)
+        parent.subtasks.append(new_task)
         if path.parent == ROOT / "backlog":
             path.write_text(render_backlog(label, sections[""]))
         else:
             path.write_text(render_daily(label.split(" — ")[0], date, sections, [p.label for p in load_priorities()]))
-        print(f"Added subtask {candidate.task_id} under {parent.task_id}")
+        print(f"Added subtask {new_task.task_id} under {parent.task_id}")
         return
 
     if not args.type:
@@ -363,7 +476,8 @@ def add_task(args: argparse.Namespace) -> None:
     if args.type not in types:
         raise TodoError(f"Unknown task type {args.type!r}; use 'todo types'")
     task_type = types[args.type]
-    task = Task(args.name, task_id=new_id(), description=[args.description] if args.description else [])
+    task = candidate()
+    ensure_valid_tree([task], ROOT)
     if task_type.behavior == "backlog":
         if args.priority:
             raise TodoError("Backlog tasks do not accept a priority")
@@ -425,9 +539,12 @@ def show_config(kind: str) -> None:
     if kind == "types":
         for item in load_types():
             print(f"{item.slug}\t{item.label}\t{item.behavior}")
-    else:
+    elif kind == "priorities":
         for item in load_priorities():
             print(f"{item.order}\t{item.label}")
+    else:
+        for item in load_due_kinds():
+            print(f"{item.weight}\t{item.slug}\t{item.label}")
 
 
 def modify_config(args: argparse.Namespace) -> None:
@@ -435,6 +552,8 @@ def modify_config(args: argparse.Namespace) -> None:
         show_config("types")
     elif args.config_action == "list-priorities":
         show_config("priorities")
+    elif args.config_action == "list-due-kinds":
+        show_config("due-kinds")
     elif args.config_action == "add-type":
         if not SLUG_RE.fullmatch(args.slug):
             raise TodoError("Type slug must be lowercase words separated by hyphens")
@@ -449,6 +568,15 @@ def modify_config(args: argparse.Namespace) -> None:
         with PRIORITIES_FILE.open("a") as handle:
             handle.write(f"{args.order}|{args.label}\n")
         print(f"Added priority {args.label}")
+    elif args.config_action == "add-due-kind":
+        if not SLUG_RE.fullmatch(args.slug):
+            raise TodoError("Due-kind slug must be lowercase words separated by hyphens")
+        if any(item.weight == args.weight or item.slug == args.slug for item in load_due_kinds()):
+            raise TodoError("Due-kind weight and slug must be unique")
+        path = ROOT / "config" / "due-kinds.conf"
+        with path.open("a") as handle:
+            handle.write(f"{args.weight}|{args.slug}|{args.label}\n")
+        print(f"Added due kind {args.slug}")
 
 
 def export_json(date: str) -> None:
@@ -465,6 +593,10 @@ def export_json(date: str) -> None:
             }
             if task.description:
                 value["description"] = "\n".join(task.description)
+            if task.due_date:
+                value["due"] = {"date": task.due_date, "kind": task.due_kind}
+                if task.due_time:
+                    value["due"]["time"] = task.due_time
             return value
 
         output.append({"type": path.stem, "label": label, "priorities": {
@@ -487,12 +619,16 @@ def parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--description")
     add_parser.add_argument("--parent", help="parent task ID")
     add_parser.add_argument("--date")
+    add_parser.add_argument("--due-date", help="due date in YYYY-MM-DD format")
+    add_parser.add_argument("--due-time", help="optional local due time in HH:MM format")
+    add_parser.add_argument("--due-kind", help="configured due-kind slug")
 
     list_parser = commands.add_parser("list", help="list tasks")
     list_parser.add_argument("--date", default=dt.date.today().isoformat())
 
     commands.add_parser("types", help="list configured task types")
     commands.add_parser("priorities", help="list configured priorities")
+    commands.add_parser("due-kinds", help="list configured due-date classifications")
 
     complete_parser = commands.add_parser("complete", help="mark a task complete")
     complete_parser.add_argument("task_id")
@@ -513,6 +649,7 @@ def parser() -> argparse.ArgumentParser:
     config_commands = config_parser.add_subparsers(dest="config_action", required=True)
     config_commands.add_parser("list-types")
     config_commands.add_parser("list-priorities")
+    config_commands.add_parser("list-due-kinds")
     add_type = config_commands.add_parser("add-type")
     add_type.add_argument("slug")
     add_type.add_argument("label")
@@ -520,6 +657,10 @@ def parser() -> argparse.ArgumentParser:
     add_priority = config_commands.add_parser("add-priority")
     add_priority.add_argument("order", type=int)
     add_priority.add_argument("label")
+    add_due_kind = config_commands.add_parser("add-due-kind")
+    add_due_kind.add_argument("weight", type=int)
+    add_due_kind.add_argument("slug")
+    add_due_kind.add_argument("label")
     return result
 
 
@@ -536,6 +677,8 @@ def main() -> int:
             show_config("types")
         elif args.command == "priorities":
             show_config("priorities")
+        elif args.command == "due-kinds":
+            show_config("due-kinds")
         elif args.command == "complete":
             set_completion(args.task_id, True, args.date)
         elif args.command == "reopen":
