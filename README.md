@@ -120,6 +120,7 @@ reference a configured due kind. Times are interpreted in the Mac's local time.
 ## Carry-forward rules
 
 - Existing files for today are never overwritten by generation.
+- Newly configured daily categories gain a file without changing existing files.
 - The previous day is schema-validated before a new directory is created.
 - Generated files are schema-validated again after they are written.
 - Unchecked tasks carry into the same category and priority.

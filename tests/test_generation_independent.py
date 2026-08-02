@@ -43,11 +43,37 @@ class IndependentGenerationTest(unittest.TestCase):
                         "health",
                         "household",
                         "errands",
+                        "intellectual-projects",
                     ]
                 ),
             )
             self.assertIn("Created", result.stdout)
             self.assertFalse((isolated / "launchd").exists())
+
+    def test_existing_day_gains_new_configured_category_without_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="todo-category-test-") as temporary:
+            isolated = Path(temporary) / "todo"
+            isolated.mkdir()
+            for name in ("bin", "config", "schema", "backlog"):
+                shutil.copytree(ROOT / name, isolated / name)
+            command = isolated / "bin" / "create-daily-todo"
+            subprocess.run(
+                [str(command), "--date", "2042-01-02"], cwd=isolated, check=True,
+                capture_output=True, text=True,
+            )
+            work = isolated / "todos" / "2042-01-02" / "work.md"
+            original_work = work.read_text()
+            types = isolated / "config" / "task-types.conf"
+            with types.open("a") as handle:
+                handle.write("new-category|New Category|daily\n")
+            subprocess.run(
+                [str(command), "--date", "2042-01-02"], cwd=isolated, check=True,
+                capture_output=True, text=True,
+            )
+            self.assertTrue(
+                (isolated / "todos" / "2042-01-02" / "new-category.md").exists()
+            )
+            self.assertEqual(work.read_text(), original_work)
 
 
 if __name__ == "__main__":

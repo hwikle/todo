@@ -481,10 +481,21 @@ def generate(date: str) -> None:
     types = load_types()
     priorities = load_priorities()
     configured_headings = [priority.label for priority in priorities]
+    daily_types = {item.slug: item for item in types if item.behavior == "daily"}
     target = TODOS_DIR / date
     if target.exists() and any(target.glob("*.md")):
         validate_paths([target], fix=True)
-        print(f"Today's TODO directory already exists: {target}")
+        created: list[str] = []
+        for slug, item in daily_types.items():
+            path = target / f"{slug}.md"
+            if not path.exists():
+                path.write_text(render_daily(item.label, date, {}, configured_headings))
+                created.append(path.name)
+        validate_paths([target], fix=False)
+        if created:
+            print(f"Added missing category files to {target}: {', '.join(created)}")
+        else:
+            print(f"Today's TODO directory already exists: {target}")
         return
 
     prior_dir = previous_day(date)
@@ -509,7 +520,6 @@ def generate(date: str) -> None:
             if next_sections:
                 carried[source.stem] = (label.split(" — ")[0], next_sections)
 
-    daily_types = {item.slug: item for item in types if item.behavior == "daily"}
     slugs = list(daily_types)
     slugs.extend(slug for slug in carried if slug not in daily_types)
     for slug in slugs:
