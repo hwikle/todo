@@ -1,0 +1,14 @@
+<type>(<scope>): <imperative summary>
+
+Why:
+- Explain the problem or motivation.
+
+What:
+- Describe the meaningful changes.
+- Note important behavior or compatibility decisions.
+
+Validation:
+- List the checks that were run.
+
+Refs:
+- Add related task IDs or references, if applicable.
