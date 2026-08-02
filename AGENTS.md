@@ -5,8 +5,8 @@ This repository is a Markdown-first task system. Markdown under `todos/` and
 
 ## Before changing tasks
 
-- Read `config/task-types.conf` and `config/priorities.conf`; never hard-code
-  category or priority names.
+- Read `config/task-types.conf`, `config/priorities.conf`, and
+  `config/due-kinds.conf`; never hard-code their values.
 - Use `bin/todo` when practical. Direct Markdown edits are supported.
 - Preserve task IDs in `<!-- task:xxxxxxxxxxxx -->` comments.
 - If a manually added task lacks an ID, run `bin/todo validate --fix`.
@@ -15,19 +15,30 @@ This repository is a Markdown-first task system. Markdown under `todos/` and
 ## Task syntax
 
 ```markdown
-- [ ] **Short name** <!-- task:12-hex-digits -->
-  Optional description.
-  - [ ] **Subtask name** <!-- task:12-hex-digits -->
-    Optional subtask description.
+- [ ] Short name <!-- task:12-hex-digits -->
+    Optional description.
+    - [ ] Subtask name <!-- task:12-hex-digits -->
+        Optional subtask description.
 ```
 
 Tasks and subtasks share the same recursive structure. Category comes from the
 filename and priority comes from the second-level heading. Backlog task types do
 not use priorities.
 
+An optional due date is stored in the task comment as `due:YYYY-MM-DD` and must
+also have a configured `due-kind:slug`. An optional local `time:HH:MM` is valid
+only when the date is present. Preserve these fields during edits.
+
 Do not mark a parent complete while it contains an unchecked subtask. The daily
 carry-forward operation copies unchecked tasks, descriptions, and unchecked
 descendants; completed tasks remain only in historical files.
+
+## Generation and scheduling boundary
+
+Daily generation is scheduler-independent. `bin/todo generate` owns creation
+and carry-forward; `bin/create-daily-todo` is only a thin entry point. Schedulers
+may invoke that entry point but must not duplicate generation logic. Codex
+scheduled check-ins read and render existing files; they do not generate them.
 
 ## Natural-language requests
 
@@ -39,6 +50,8 @@ Examples:
 
 ```text
 bin/todo add --type household --priority Must "Replace furnace filter"
+bin/todo add --type health --priority Must --due-date 2026-08-03 \
+  --due-time 10:30 --due-kind hard "Submit quarterly report"
 bin/todo add --type someday "Learn woodworking"
 bin/todo add --parent abc123def456 "Buy replacement filter"
 bin/todo complete abc123def456
@@ -51,6 +64,7 @@ After changing task data or implementation, run:
 ```text
 bin/todo validate --fix
 bin/todo list --date YYYY-MM-DD
+python3 tests/test_generation_independent.py
 ```
 
 When changing the scheduler template, also run:

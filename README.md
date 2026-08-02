@@ -13,6 +13,7 @@ bin/create-daily-todo          Daily generator entry point
 bin/todo-config                Configuration helper entry point
 config/task-types.conf         Flexible category definitions
 config/priorities.conf         Flexible ordered priorities
+config/due-kinds.conf          Flexible deadline classifications
 launchd/*.plist                Optional macOS scheduler template
 schema/task.schema.json        Recursive task data contract
 todos/YYYY-MM-DD/*.md          Authoritative daily checklists
@@ -22,6 +23,24 @@ The initial daily categories are Work, Learning, Software Projects, Finance,
 Health, Household, and Errands. Someday is a persistent backlog. Initial
 priorities are Must, Should, and Could. These names are configuration, not code.
 
+## Generation is independent from scheduling
+
+Daily-list creation is a standalone operation:
+
+```text
+bin/create-daily-todo
+bin/create-daily-todo --date 2026-08-03
+```
+
+The first command uses the current local date. The second supports testing,
+backfilling, or use by another automation system. Neither command checks for or
+depends on `launchd`, Codex, or any scheduler state.
+
+`bin/create-daily-todo` is a thin entry point for `bin/todo generate`. Scheduler
+configurations only decide when to invoke it; all creation and carry-forward
+behavior remains in the generator. The 6:00 AM Codex check-in is intentionally
+read-only with respect to generation.
+
 ## Markdown format
 
 ```markdown
@@ -29,10 +48,11 @@ priorities are Must, Should, and Could. These names are configuration, not code.
 
 ## Must
 
-- [ ] **Prepare quarterly report** <!-- task:abc123def456 -->
-  Assemble final financial and operational results.
-  - [ ] **Collect department figures** <!-- task:def456abc123 -->
-    Request final figures from accounting.
+- [ ] Prepare quarterly report <!-- task:abc123def456 due:2026-08-03 time:10:30 due-kind:hard -->
+    Due: August 3, 2026 at 10:30 AM — Hard deadline.
+    Assemble final financial and operational results.
+    - [ ] Collect department figures <!-- task:def456abc123 -->
+        Request final figures from accounting.
 ```
 
 You may edit these files directly. IDs are stable identifiers used for
@@ -54,6 +74,8 @@ Add tasks:
 bin/todo add --type work --priority Must "Prepare quarterly report"
 bin/todo add --type health --priority Should \
   --description "Call the clinic before noon." "Schedule annual physical"
+bin/todo add --type health --priority Must --due-date 2026-08-03 \
+  --due-time 10:30 --due-kind hard "Submit quarterly report"
 bin/todo add --type someday "Learn woodworking"
 bin/todo add --parent abc123def456 "Write executive summary"
 bin/todo complete abc123def456
@@ -66,6 +88,7 @@ Inspect tasks and configuration:
 bin/todo list
 bin/todo types
 bin/todo priorities
+bin/todo due-kinds
 bin/todo export
 ```
 
@@ -74,10 +97,15 @@ Add configuration without changing code:
 ```text
 bin/todo-config add-type travel "Travel"
 bin/todo-config add-priority 15 "Time-sensitive"
+bin/todo-config add-due-kind 75 firm "Firm commitment"
 ```
 
-The numeric priority value controls display order. Backlog types can be added
+The numeric priority value controls display order. Due-kind weights allow more
+classifications without changing task data or code. Backlog types can be added
 with `--behavior backlog`.
+
+Due dates are optional. A due time requires a date, and every dated task must
+reference a configured due kind. Times are interpreted in the Mac's local time.
 
 ## Carry-forward rules
 
@@ -87,6 +115,12 @@ with `--behavior backlog`.
 - Completed tasks and completed subtasks remain in historical files.
 - A completed parent with an unchecked descendant fails validation.
 - A removed category or priority is preserved while it still has unchecked work.
+
+Run the scheduler-independence regression test with:
+
+```text
+python3 tests/test_generation_independent.py
+```
 
 ## Optional launchd schedule (5:55 AM)
 
