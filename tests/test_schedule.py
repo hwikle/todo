@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import plistlib
 import subprocess
 import sys
@@ -86,6 +87,30 @@ class ScheduleTest(unittest.TestCase):
             self.assertEqual(document["generation_time"], "04:37")
             self.assertEqual(document["codex_time"], "04:42")
             self.assertTrue(document["notifications"])
+
+    def test_notification_failure_preserves_output_and_fails_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable_directory = root / "bin"
+            executable_directory.mkdir()
+            notifier = executable_directory / "osascript"
+            notifier.write_text("#!/bin/sh\nexit 23\n")
+            notifier.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update({
+                "PATH": f"{executable_directory}:{environment['PATH']}",
+                "TODO_DATE": "2099-01-02",
+                "TODO_LISTS_DIR": str(root / "lists"),
+                "TODO_NOTIFY": "1",
+            })
+            result = subprocess.run(
+                [str(ROOT / "libexec" / "create-daily-todo")],
+                cwd=ROOT, env=environment, capture_output=True, text=True,
+            )
+            day = root / "lists" / "2099-01-02"
+            self.assertEqual(result.returncode, 23)
+            self.assertTrue((day / "todo.json").is_file())
+            self.assertTrue(list(day.glob("*.md")))
 
 
 if __name__ == "__main__":

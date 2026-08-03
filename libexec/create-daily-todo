@@ -12,5 +12,5 @@ arguments=(list create --date "$TODAY" --output "$DAY_DIR/todo.json")
 "$ROOT/bin/todo" $arguments
 "$ROOT/bin/todo" view render "$DAY_DIR/todo.json" --output-dir "$DAY_DIR"
 if [[ ${TODO_NOTIFY:-0} == 1 ]]; then
-  osascript -e 'display notification "Today’s TODO list is ready." with title "Daily TODO"' || true
+  osascript -e 'display notification "Today’s TODO list is ready." with title "Daily TODO"'
 fi

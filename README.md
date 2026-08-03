@@ -112,7 +112,9 @@ Codex follow-up time is retained for configuring a separate Codex automation;
 launchd does not consume it. Installation writes and loads
 `~/Library/LaunchAgents/local.daily-todo.plist`. Use `--replace` when replacing
 existing configuration or installation files. Scheduling is optional; all list
-and view commands work without it.
+and view commands work without it. When notifications are enabled, delivery is
+part of successful job completion: a notification failure leaves generated
+files intact but makes the launchd run report failure.
 
 ## Development
 
