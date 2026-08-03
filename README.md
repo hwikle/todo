@@ -25,6 +25,10 @@ todos/YYYY-MM-DD/*.md           Ignored generated category views
 
 See `INSTALL.md` for setup instructions.
 
+All transformation commands accept explicit input paths. Alternative output
+paths are supported where a command writes data; existing alternate outputs are
+not overwritten unless `--replace` is explicitly available and supplied.
+
 ## Canonical workflow
 
 Validate a daily list:
@@ -41,6 +45,9 @@ bin/render-todos --output-dir /path/to/review todos/2026-08-02/todo.json
 bin/render-todos --replace todos/2026-08-02/todo.json
 ```
 
+Without `--output-dir`, category files are written beside the input JSON.
+Existing category files require `--replace`.
+
 Every explicit category member appears in its own priority section.
 Dependencies are also rendered recursively, so one canonical task may appear
 more than once. Nested tasks display their priority when it differs from the
@@ -53,7 +60,10 @@ bin/render-todos --combined-output /path/to/todo.md path/to/todo.json
 bin/render-todos --stdout path/to/todo.json
 ```
 
-Combined views are presentation outputs and are not synchronization inputs.
+Combined views preserve canonical category order and separate categories with
+Markdown horizontal rules. They are presentation outputs and are not
+synchronization inputs. An existing `--combined-output` file requires
+`--replace`.
 
 After editing checkbox markers in Markdown, synchronize them into JSON:
 
@@ -66,7 +76,10 @@ bin/sync-todos --dry-run todos/2026-08-02/todo.json
 
 Synchronization requires every non-checkbox character to match a fresh
 canonical render. Structural edits and conflicting states across repeated
-appearances fail without changing JSON.
+appearances fail without changing JSON. By default, category views are read from
+the input JSON's directory and the JSON is updated in place. `--view-dir`
+selects another category-view directory. `--output` refuses existing files and
+must differ from the input; `--stdout` and `--dry-run` never write.
 
 ## Daily generation
 
@@ -79,12 +92,22 @@ bin/generate-todos --date 2026-08-03 --previous /path/to/prior.json \
   --output /path/to/generated.json
 ```
 
+Without `--previous`, generation discovers the latest earlier `todo.json`
+beneath `--data-dir` (default: `todos/`). Without `--output`, it writes
+`<data-dir>/<date>/todo.json`. An explicit output path does not change where an
+implicit previous list is discovered. `--render` writes category views beside
+the selected JSON output. Explicit previous lists must predate the target.
+
 Generate JSON and category views through the scheduler entry point:
 
 ```text
 bin/create-daily-todo
 bin/create-daily-todo --date 2026-08-03
 ```
+
+This entry point accepts the generator's path options and always enables
+rendering. If the target JSON already exists, generation exits successfully
+without changing JSON or Markdown.
 
 Generation validates the latest prior canonical list, carries incomplete tasks
 with stable IDs and live dependency references, retains explicit memberships,
@@ -102,7 +125,9 @@ bin/convert-todos todos/2026-08-02
 
 The converter does not rely on Markdown IDs. Every occurrence receives a fresh
 ID, four-space nesting becomes dependencies, every category assignment is
-explicit, and identical names remain distinct.
+explicit, and identical names remain distinct. Output defaults to
+`<source>/todo.json`; `--output` selects another path, `--stdout` writes
+nothing, and existing output is never replaced.
 
 ## Validation policy
 
@@ -120,6 +145,22 @@ Validation combines Draft 2020-12 schemas with whole-document checks for:
 Missing priorities, uncategorized tasks, empty categories, multiple-category
 membership, and duplicate category display names are warnings. `--strict`
 promotes them to errors. Structural ambiguity is always an error.
+
+The same `--strict` policy is available during conversion, rendering,
+synchronization, and generation. Due dates support year, optional month,
+optional day, and optional time in progressively specific order.
+
+## Category configuration
+
+Canonical generation reads daily categories from `config/task-types.conf`.
+Add a category without changing code with:
+
+```text
+bin/todo-config add-type travel "Travel"
+```
+
+The legacy priority and due-kind configuration commands do not change the
+canonical `must`/`should`/`could` and `hard`/`soft` schema values.
 
 ## Optional launchd schedule
 

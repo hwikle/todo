@@ -31,6 +31,10 @@ bin/validate-todos --strict path/to/todo-list.json
 The `todos/` and `backlog/` directories are created by commands as needed and
 are ignored by Git. No user task data is installed or version-controlled.
 
+Run any repository command from another directory by using its absolute path;
+input and output paths themselves may also be absolute. Command wrappers locate
+the repository-local environment independently of the current directory.
+
 ## Recreate the environment
 
 Remove `.venv/` and run `bin/setup` again. No global package cleanup is needed.
@@ -43,6 +47,7 @@ environment. Install the dependency constraint recorded in `pyproject.toml`,
 test the validator, and regenerate the lock file with:
 
 ```text
+.venv/bin/python -m pip install 'jsonschema>=4,<5'
 .venv/bin/python -m pip freeze > requirements.lock
 ```
 

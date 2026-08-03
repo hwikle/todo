@@ -33,6 +33,7 @@ bin/validate-todos todos/YYYY-MM-DD/todo.json
 bin/convert-todos todos/YYYY-MM-DD
 bin/render-todos --replace todos/YYYY-MM-DD/todo.json
 bin/sync-todos todos/YYYY-MM-DD/todo.json
+bin/generate-todos --date YYYY-MM-DD
 bin/generate-todos --date YYYY-MM-DD --previous PATH --output PATH
 bin/create-daily-todo --date YYYY-MM-DD
 ```
@@ -41,9 +42,21 @@ bin/create-daily-todo --date YYYY-MM-DD
 carry-forward. `bin/create-daily-todo` is the thin render-enabled entry point for
 schedulers. Schedulers must not duplicate generation logic.
 
+Input and output paths are configurable. Alternate outputs never overwrite
+existing files unless the relevant command explicitly receives `--replace`.
+Combined Markdown is presentation-only and cannot be synchronized. `--strict`
+promotes warnings for conversion, validation, rendering, synchronization, and
+generation.
+
+Canonical generation reads daily category definitions from
+`config/task-types.conf`. The legacy priority and due-kind configuration files
+do not define canonical schema values.
+
 The old `bin/todo` implementation remains only as migration reference. Do not
 use its Markdown validator, generator, exporter, or mutation commands with
 canonical data. Those commands are guarded against accidental execution.
+`bin/todo-config add-type` remains usable for canonical daily categories; its
+priority and due-kind operations affect only the legacy implementation.
 
 ## Verification
 
