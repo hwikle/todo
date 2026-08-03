@@ -35,12 +35,12 @@ def valid_document() -> TodoList:
     return cast(TodoList, {
         "date": "2042-01-02",
         "tasks": [
-            task("aaaaaaaaaaaa", "Parent", dependencies=["bbbbbbbbbbbb"]),
-            task("bbbbbbbbbbbb", "Dependency", priority="should"),
+            task("00000000-0000-4000-8000-000000000001", "Parent", dependencies=["00000000-0000-4000-8000-000000000002"]),
+            task("00000000-0000-4000-8000-000000000002", "Dependency", priority="should"),
         ],
         "categories": [{"id": "work", "display_name": "Work"}],
         "category_memberships": [
-            {"category": "work", "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb"]}
+            {"category": "work", "tasks": ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]}
         ],
     })
 
@@ -69,7 +69,7 @@ class CanonicalValidationTest(unittest.TestCase):
 
     def test_duplicate_and_ambiguous_task_ids(self) -> None:
         document = valid_document()
-        document["tasks"].append(task("bbbbbbbbbbbb", "Duplicate"))
+        document["tasks"].append(task("00000000-0000-4000-8000-000000000002", "Duplicate"))
         messages = self.errors(document)
         self.assertTrue(any("duplicate task ID" in item for item in messages))
         self.assertTrue(any("ambiguous task ID" in item for item in messages))
@@ -78,7 +78,7 @@ class CanonicalValidationTest(unittest.TestCase):
         document = valid_document()
         document["category_memberships"][0] = {
             "category": "missing",
-            "tasks": ["cccccccccccc"],
+            "tasks": ["00000000-0000-4000-8000-000000000003"],
         }
         messages = self.errors(document)
         self.assertTrue(any("unknown category ID" in item for item in messages))
@@ -86,11 +86,11 @@ class CanonicalValidationTest(unittest.TestCase):
 
     def test_self_dependency_and_cycle(self) -> None:
         document = valid_document()
-        document["tasks"][0]["dependencies"] = ["aaaaaaaaaaaa"]
+        document["tasks"][0]["dependencies"] = ["00000000-0000-4000-8000-000000000001"]
         self.assertTrue(any("depend on itself" in item for item in self.errors(document)))
 
         document = valid_document()
-        document["tasks"][1]["dependencies"] = ["aaaaaaaaaaaa"]
+        document["tasks"][1]["dependencies"] = ["00000000-0000-4000-8000-000000000001"]
         self.assertTrue(any("dependency cycle" in item for item in self.errors(document)))
 
     def test_completed_task_requires_completed_dependencies(self) -> None:
@@ -107,14 +107,14 @@ class CanonicalValidationTest(unittest.TestCase):
     def test_duplicate_membership_is_an_error(self) -> None:
         document = valid_document()
         document["category_memberships"].append(
-            {"category": "work", "tasks": ["aaaaaaaaaaaa"]}
+            {"category": "work", "tasks": ["00000000-0000-4000-8000-000000000001"]}
         )
         self.assertTrue(any("duplicate category/task membership" in item for item in self.errors(document)))
 
     def test_advisories_are_warnings(self) -> None:
         document = valid_document()
         document["tasks"][0].pop("priority")
-        document["category_memberships"][0]["tasks"] = ["bbbbbbbbbbbb"]
+        document["category_memberships"][0]["tasks"] = ["00000000-0000-4000-8000-000000000002"]
         document["categories"].append({"id": "other", "display_name": "Work"})
         messages = self.warnings(document)
         self.assertTrue(any("no priority" in item for item in messages))
@@ -126,15 +126,15 @@ class CanonicalValidationTest(unittest.TestCase):
         document = valid_document()
         document["categories"].append({"id": "other", "display_name": "Other"})
         document["category_memberships"].append(
-            {"category": "other", "tasks": ["aaaaaaaaaaaa"]}
+            {"category": "other", "tasks": ["00000000-0000-4000-8000-000000000001"]}
         )
         self.assertTrue(any("multiple categories" in item for item in self.warnings(document)))
 
     def test_conflicting_rendered_checkboxes_are_errors(self) -> None:
         issues = validate_completion_observations(
             [
-                ("aaaaaaaaaaaa", False, "work.md:3"),
-                ("aaaaaaaaaaaa", True, "work.md:9"),
+                ("00000000-0000-4000-8000-000000000001", False, "work.md:3"),
+                ("00000000-0000-4000-8000-000000000001", True, "work.md:9"),
             ]
         )
         self.assertEqual(len(issues), 1)

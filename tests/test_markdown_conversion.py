@@ -25,7 +25,7 @@ class Ids:
 
     def __call__(self) -> str:
         self.value += 1
-        return f"{self.value:012x}"
+        return f"00000000-0000-4000-8000-{self.value:012x}"
 
 
 class MarkdownConversionTest(unittest.TestCase):
@@ -48,10 +48,10 @@ class MarkdownConversionTest(unittest.TestCase):
 
 ## Must
 
-- [ ] Parent <!-- task:aaaaaaaaaaaa due:2042-01-05 time:09:30 due-kind:hard -->
+- [ ] Parent <!-- task:00000000-0000-4000-8000-000000000001 due:2042-01-05 time:09:30 due-kind:hard -->
     Due: January 5, 2042 at 9:30 AM — Hard deadline.
     Parent description.
-    - [x] Child <!-- task:bbbbbbbbbbbb -->
+    - [x] Child <!-- task:00000000-0000-4000-8000-000000000002 -->
         Child description.
 
 ## Should
@@ -64,8 +64,8 @@ class MarkdownConversionTest(unittest.TestCase):
         )
         self.assertEqual(self.validator.validate(document), [])
         parent, child = document["tasks"]
-        self.assertEqual(parent["id"], "000000000001")
-        self.assertEqual(child["id"], "000000000002")
+        self.assertEqual(parent["id"], "00000000-0000-4000-8000-000000000001")
+        self.assertEqual(child["id"], "00000000-0000-4000-8000-000000000002")
         self.assertEqual(parent["dependencies"], [child["id"]])
         self.assertEqual(parent["description"], "Parent description.")
         self.assertEqual(child["description"], "Child description.")

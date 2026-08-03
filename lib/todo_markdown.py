@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional, cast
+from typing import Optional, cast
 
+from todo_ids import TaskIdSource
 from todo_model import (
     Category,
     DeadlineKind,
@@ -57,20 +57,6 @@ class ParsedTask:
             if self.deadline_kind is not None:
                 result["deadline_kind"] = self.deadline_kind
         return result
-
-
-class FreshIdSource:
-    def __init__(self, generator: Optional[Callable[[], str]] = None) -> None:
-        self.generator = generator or (lambda: uuid.uuid4().hex[:12])
-        self.seen: set[str] = set()
-
-    def next(self) -> str:
-        for _ in range(1000):
-            candidate = self.generator()
-            if re.fullmatch(r"[0-9a-f]{12}", candidate) and candidate not in self.seen:
-                self.seen.add(candidate)
-                return candidate
-        raise MarkdownConversionError("could not generate a unique 12-character task ID")
 
 
 def parse_metadata(value: str, source: Path, line_number: int) -> dict[str, str]:
@@ -143,7 +129,7 @@ def parse_category_text(
     source: Path,
     expected_date: str,
     priorities: dict[str, Priority],
-    ids: FreshIdSource,
+    ids: TaskIdSource,
 ) -> tuple[Category, list[ParsedTask]]:
     path = source
     lines = content.splitlines()

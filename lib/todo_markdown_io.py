@@ -6,7 +6,8 @@ import datetime as dt
 from pathlib import Path
 from typing import Callable, Optional
 
-from todo_markdown import FreshIdSource, MarkdownConversionError, parse_category_text
+from todo_ids import TaskIdSource
+from todo_markdown import MarkdownConversionError, parse_category_text
 from todo_model import Category, CategoryMembership, Priority, Task, TodoList
 
 
@@ -28,7 +29,8 @@ def convert_daily_directory(
     if not files:
         raise MarkdownConversionError(f"{source}: no category Markdown files found")
     priorities = {value.casefold(): value for value in priority_values}
-    ids = FreshIdSource(id_generator)
+    ids = TaskIdSource(id_generator)
+    generated_ids: set[str] = set()
     categories: list[Category] = []
     canonical_tasks: list[Task] = []
     memberships: list[CategoryMembership] = []
@@ -38,6 +40,12 @@ def convert_daily_directory(
         except OSError as exc:
             raise MarkdownConversionError(f"cannot read {path}: {exc}") from exc
         category, tasks = parse_category_text(content, path, date, priorities, ids)
+        for task in tasks:
+            if task.task_id in generated_ids:
+                raise MarkdownConversionError(
+                    f"{task.source}: generated duplicate task ID {task.task_id!r}"
+                )
+            generated_ids.add(task.task_id)
         categories.append(category)
         task_ids = [task.task_id for task in tasks]
         canonical_tasks.extend(task.canonical() for task in tasks)

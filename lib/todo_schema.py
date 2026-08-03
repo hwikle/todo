@@ -22,6 +22,7 @@ class CanonicalSchemaBundle:
         "category.schema.json",
         "due-date.schema.json",
         "priority.schema.json",
+        "task-id.schema.json",
         "task.schema.json",
         "todo-list.schema.json",
     }

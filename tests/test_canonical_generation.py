@@ -26,21 +26,21 @@ def previous_document() -> TodoList:
         "date": "2042-01-02",
         "tasks": [
             {
-                "id": "aaaaaaaaaaaa",
+                "id": "00000000-0000-4000-8000-000000000001",
                 "name": "Incomplete parent",
                 "priority": "must",
                 "completed": False,
-                "dependencies": ["bbbbbbbbbbbb", "cccccccccccc"],
+                "dependencies": ["00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"],
             },
             {
-                "id": "bbbbbbbbbbbb",
+                "id": "00000000-0000-4000-8000-000000000002",
                 "name": "Incomplete dependency",
                 "priority": "should",
                 "completed": False,
                 "dependencies": [],
             },
             {
-                "id": "cccccccccccc",
+                "id": "00000000-0000-4000-8000-000000000003",
                 "name": "Completed dependency",
                 "priority": "could",
                 "completed": True,
@@ -51,7 +51,7 @@ def previous_document() -> TodoList:
         "category_memberships": [
             {
                 "category": "work",
-                "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc"],
+                "tasks": ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"],
             }
         ],
     })
@@ -71,14 +71,14 @@ class CanonicalGenerationTest(unittest.TestCase):
             [{"id": "health", "display_name": "Health"}],
         )
         self.assertEqual([task["id"] for task in generated["tasks"]], [
-            "aaaaaaaaaaaa",
-            "bbbbbbbbbbbb",
+            "00000000-0000-4000-8000-000000000001",
+            "00000000-0000-4000-8000-000000000002",
         ])
-        self.assertEqual(generated["tasks"][0]["dependencies"], ["bbbbbbbbbbbb"])
+        self.assertEqual(generated["tasks"][0]["dependencies"], ["00000000-0000-4000-8000-000000000002"])
         self.assertEqual(
             generated["category_memberships"],
             [
-                {"category": "work", "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb"]},
+                {"category": "work", "tasks": ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]},
                 {"category": "health", "tasks": []},
             ],
         )

@@ -12,8 +12,7 @@
   ],
   "properties": {
     "id": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{12}$"
+      "$ref": "task-id.schema.json"
     },
     "name": {
       "type": "string",
@@ -32,8 +31,7 @@
       "type": "array",
       "uniqueItems": true,
       "items": {
-        "type": "string",
-        "pattern": "^[0-9a-f]{12}$"
+        "$ref": "task-id.schema.json"
       }
     },
     "due": {

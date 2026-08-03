@@ -26,14 +26,14 @@ def document() -> TodoList:
         "date": "2042-01-02",
         "tasks": [
             {
-                "id": "aaaaaaaaaaaa",
+                "id": "00000000-0000-4000-8000-000000000001",
                 "name": "Parent",
                 "priority": "must",
                 "completed": False,
-                "dependencies": ["bbbbbbbbbbbb"],
+                "dependencies": ["00000000-0000-4000-8000-000000000002"],
             },
             {
-                "id": "bbbbbbbbbbbb",
+                "id": "00000000-0000-4000-8000-000000000002",
                 "name": "Repeated dependency",
                 "priority": "should",
                 "completed": False,
@@ -42,7 +42,7 @@ def document() -> TodoList:
         ],
         "categories": [{"id": "work", "display_name": "Work"}],
         "category_memberships": [
-            {"category": "work", "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb"]}
+            {"category": "work", "tasks": ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]}
         ],
     })
 
@@ -71,7 +71,7 @@ class CheckboxSyncTest(unittest.TestCase):
         path.write_text(content)
         result = synchronize_views(self.document, self.rendered, self.views(), str(self.root))
         self.assertEqual(result.issues, ())
-        self.assertEqual(result.changed_task_ids, ("bbbbbbbbbbbb",))
+        self.assertEqual(result.changed_task_ids, ("00000000-0000-4000-8000-000000000002",))
         self.assertTrue(result.document["tasks"][1]["completed"])
 
     def test_conflicting_repeated_checkboxes_fail(self) -> None:

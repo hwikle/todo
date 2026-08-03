@@ -25,17 +25,17 @@ def document() -> TodoList:
         "date": "2042-01-02",
         "tasks": [
             {
-                "id": "aaaaaaaaaaaa",
+                "id": "00000000-0000-4000-8000-000000000001",
                 "name": "Parent",
                 "priority": "must",
                 "completed": False,
-                "dependencies": ["bbbbbbbbbbbb"],
+                "dependencies": ["00000000-0000-4000-8000-000000000002"],
                 "description": "First line\nSecond line",
                 "due": {"year": 2042, "month": 1, "day": 5, "time": "09:30"},
                 "deadline_kind": "hard",
             },
             {
-                "id": "bbbbbbbbbbbb",
+                "id": "00000000-0000-4000-8000-000000000002",
                 "name": "Shared dependency",
                 "priority": "should",
                 "completed": False,
@@ -44,7 +44,7 @@ def document() -> TodoList:
         ],
         "categories": [{"id": "work", "display_name": "Work"}],
         "category_memberships": [
-            {"category": "work", "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb"]}
+            {"category": "work", "tasks": ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]}
         ],
     })
 
@@ -61,12 +61,12 @@ class MarkdownRenderingTest(unittest.TestCase):
             document(), list(self.validator.priority_policy.order)
         )["work.md"]
         self.assertNotIn("task:", rendered.content)
-        self.assertNotIn("aaaaaaaaaaaa", rendered.content)
+        self.assertNotIn("00000000-0000-4000-8000-000000000001", rendered.content)
         self.assertEqual(rendered.content.count("Shared dependency"), 2)
         self.assertIn("    - [ ] Shared dependency — Should", rendered.content)
         self.assertIn("## Should\n\n- [ ] Shared dependency", rendered.content)
         child_occurrences = [
-            item for item in rendered.occurrences if item.task_id == "bbbbbbbbbbbb"
+            item for item in rendered.occurrences if item.task_id == "00000000-0000-4000-8000-000000000002"
         ]
         self.assertEqual(len(child_occurrences), 2)
 

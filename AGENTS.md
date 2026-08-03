@@ -15,7 +15,7 @@ This repository contains software for managing daily TODO lists. User data under
 
 ## Canonical model
 
-- Every task has a unique 12-character hexadecimal ID, completion state, and
+- Every task has a unique canonical UUIDv4 ID, completion state, and
   dependency list.
 - Priority is optional and ordered by `schema/priority.schema.json`.
 - A dependency may have the same or lower priority than the task that depends on
