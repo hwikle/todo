@@ -90,16 +90,13 @@ become errors under `--strict`.
 ## Optional macOS schedule
 
 Scheduling uses an ignored, machine-local `config/schedule.json`. It records
-the repository and list-storage directories, the local generation time, the
-separate Codex follow-up time, and whether list generation shows a macOS
-notification. Create it with explicit values before installing:
+the repository and list-storage directories and the local generation time.
+Create it with explicit values before installing:
 
 ```text
 todo schedule configure \
   --lists-dir /absolute/path/to/lists \
-  --generation-time HH:MM \
-  --codex-time HH:MM \
-  --notify
+  --generation-time HH:MM
 todo schedule show
 todo schedule install
 todo schedule status
@@ -107,14 +104,12 @@ todo schedule uninstall
 ```
 
 The launchd job computes explicit current- and previous-day paths, creates
-canonical JSON, and then renders category views as a separate operation. The
-Codex follow-up time is retained for configuring a separate Codex automation;
-launchd does not consume it. Installation writes and loads
+canonical JSON, and then renders category views as a separate operation.
+Notification delivery and Codex integration are deliberately outside this
+program's responsibilities. Installation writes and loads
 `~/Library/LaunchAgents/local.daily-todo.plist`. Use `--replace` when replacing
 existing configuration or installation files. Scheduling is optional; all list
-and view commands work without it. When notifications are enabled, delivery is
-part of successful job completion: a notification failure leaves generated
-files intact but makes the launchd run report failure.
+and view commands work without it.
 
 ## Development
 
