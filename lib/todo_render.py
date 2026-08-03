@@ -27,21 +27,6 @@ def priority_label(priority: str) -> str:
     return priority.capitalize()
 
 
-def due_metadata(task: Task) -> str:
-    due = task["due"]
-    values = [
-        f"due:{due['year']:04d}",
-    ]
-    if "month" in due:
-        values[0] += f"-{due['month']:02d}"
-    if "day" in due:
-        values[0] += f"-{due['day']:02d}"
-    if "time" in due:
-        values.append(f"time:{due['time']}")
-    values.append(f"due-kind:{task['deadline_kind']}")
-    return f" <!-- {' '.join(values)} -->"
-
-
 def due_display(task: Task) -> str:
     due = task["due"]
     if "day" in due:
@@ -120,8 +105,7 @@ def _render_task(
     if depth and task_priority != section_priority:
         label = "Unprioritized" if task_priority is None else priority_label(task_priority)
         annotation = f" — {label}"
-    metadata = due_metadata(task) if "due" in task else ""
-    lines.append(f"{indent}- [{mark}] {task['name']}{annotation}{metadata}")
+    lines.append(f"{indent}- [{mark}] {task['name']}{annotation}")
     occurrences.append(
         RenderedOccurrence(task_id=task["id"], completed=task["completed"], line=len(lines))
     )

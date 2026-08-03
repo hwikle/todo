@@ -31,6 +31,8 @@ def document() -> TodoList:
                 "priority": "must",
                 "completed": False,
                 "dependencies": ["00000000-0000-4000-8000-000000000002"],
+                "due": {"year": 2042, "month": 1, "day": 5, "time": "09:30"},
+                "deadline_kind": "hard",
             },
             {
                 "id": "00000000-0000-4000-8000-000000000002",
@@ -100,6 +102,12 @@ class CheckboxSyncTest(unittest.TestCase):
     def test_structural_edits_fail(self) -> None:
         path = self.root / "work.md"
         path.write_text(path.read_text().replace("Repeated dependency", "Renamed", 1))
+        result = synchronize_views(self.document, self.rendered, self.views(), str(self.root))
+        self.assertTrue(any("differs" in issue.message for issue in result.issues))
+
+    def test_due_date_edits_fail_as_structural_changes(self) -> None:
+        path = self.root / "work.md"
+        path.write_text(path.read_text().replace("January 5", "January 6"))
         result = synchronize_views(self.document, self.rendered, self.views(), str(self.root))
         self.assertTrue(any("differs" in issue.message for issue in result.issues))
 

@@ -104,14 +104,12 @@ class MarkdownRenderingTest(unittest.TestCase):
         self.assertIn("    - [ ] Shared dependency — Should", rendered["work.md"].content)
         self.assertIn("## Should\n\n- [ ] Shared dependency", rendered["learning.md"].content)
 
-    def test_renders_due_metadata_without_task_ids(self) -> None:
+    def test_renders_readable_due_date_without_metadata_comment(self) -> None:
         content = render_document(
             document(), list(self.validator.priority_policy.order)
         )["work.md"].content
-        self.assertIn(
-            "<!-- due:2042-01-05 time:09:30 due-kind:hard -->",
-            content,
-        )
+        self.assertNotIn("<!--", content)
+        self.assertNotIn("due-kind:", content)
         self.assertIn("Due: January 5, 2042 at 9:30 AM — Hard deadline.", content)
 
     def test_cli_requires_explicit_replacement(self) -> None:
