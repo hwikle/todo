@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import os
 import plistlib
 import subprocess
 import sys
@@ -26,8 +25,6 @@ class ScheduleTest(unittest.TestCase):
             "repository_directory": "/example/repository",
             "lists_directory": "/example/lists",
             "generation_time": "04:37",
-            "codex_time": "04:42",
-            "notifications": True,
         }
         config = from_document(document)
         self.assertEqual(json.loads(config.to_json()), document)
@@ -37,8 +34,6 @@ class ScheduleTest(unittest.TestCase):
             "repository_directory": "relative/repository",
             "lists_directory": "/example/lists",
             "generation_time": "25:00",
-            "codex_time": "04:42",
-            "notifications": True,
         }
         with self.assertRaisesRegex(ScheduleConfigurationError, "absolute path"):
             from_document(document)
@@ -46,20 +41,16 @@ class ScheduleTest(unittest.TestCase):
         with self.assertRaisesRegex(ScheduleConfigurationError, "24-hour HH:MM"):
             from_document(document)
 
-    def test_launchd_uses_configured_paths_time_and_notification(self) -> None:
+    def test_launchd_uses_configured_paths_and_time(self) -> None:
         config = ScheduleConfig(
             repository_directory=Path("/example/repository"),
             lists_directory=Path("/example/lists"),
             generation_time=dt.time(4, 37),
-            codex_time=dt.time(4, 42),
-            notifications=False,
         )
         document = plistlib.loads(render_launchd(config, "example.todo").encode())
         self.assertEqual(document["ProgramArguments"], ["/example/repository/libexec/create-daily-todo"])
         self.assertEqual(document["EnvironmentVariables"]["TODO_LISTS_DIR"], "/example/lists")
-        self.assertEqual(document["EnvironmentVariables"]["TODO_NOTIFY"], "0")
         self.assertEqual(document["StartCalendarInterval"], {"Hour": 4, "Minute": 37})
-        self.assertNotIn("codex_time", document)
 
     def test_cli_writes_and_shows_explicit_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -72,8 +63,6 @@ class ScheduleTest(unittest.TestCase):
                     "--repository-dir", str(ROOT),
                     "--lists-dir", str(root / "lists"),
                     "--generation-time", "04:37",
-                    "--codex-time", "04:42",
-                    "--notify",
                 ],
                 cwd=ROOT, capture_output=True, text=True,
             )
@@ -85,32 +74,6 @@ class ScheduleTest(unittest.TestCase):
             self.assertEqual(shown.returncode, 0, shown.stderr)
             document = json.loads(shown.stdout)
             self.assertEqual(document["generation_time"], "04:37")
-            self.assertEqual(document["codex_time"], "04:42")
-            self.assertTrue(document["notifications"])
-
-    def test_notification_failure_preserves_output_and_fails_run(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            executable_directory = root / "bin"
-            executable_directory.mkdir()
-            notifier = executable_directory / "osascript"
-            notifier.write_text("#!/bin/sh\nexit 23\n")
-            notifier.chmod(0o755)
-            environment = os.environ.copy()
-            environment.update({
-                "PATH": f"{executable_directory}:{environment['PATH']}",
-                "TODO_DATE": "2099-01-02",
-                "TODO_LISTS_DIR": str(root / "lists"),
-                "TODO_NOTIFY": "1",
-            })
-            result = subprocess.run(
-                [str(ROOT / "libexec" / "create-daily-todo")],
-                cwd=ROOT, env=environment, capture_output=True, text=True,
-            )
-            day = root / "lists" / "2099-01-02"
-            self.assertEqual(result.returncode, 23)
-            self.assertTrue((day / "todo.json").is_file())
-            self.assertTrue(list(day.glob("*.md")))
 
 
 if __name__ == "__main__":

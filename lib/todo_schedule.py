@@ -18,16 +18,12 @@ class ScheduleConfig:
     repository_directory: Path
     lists_directory: Path
     generation_time: dt.time
-    codex_time: dt.time
-    notifications: bool
 
     def to_json(self) -> str:
         document = {
             "repository_directory": str(self.repository_directory),
             "lists_directory": str(self.lists_directory),
             "generation_time": self.generation_time.strftime("%H:%M"),
-            "codex_time": self.codex_time.strftime("%H:%M"),
-            "notifications": self.notifications,
         }
         return json.dumps(document, indent=2) + "\n"
 
@@ -55,7 +51,7 @@ def from_document(document: object) -> ScheduleConfig:
     if not isinstance(document, dict):
         raise ScheduleConfigurationError("schedule configuration must be a JSON object")
     expected = {
-        "repository_directory", "lists_directory", "generation_time", "codex_time", "notifications"
+        "repository_directory", "lists_directory", "generation_time"
     }
     keys = set(document)
     missing = expected - keys
@@ -64,15 +60,10 @@ def from_document(document: object) -> ScheduleConfig:
         raise ScheduleConfigurationError(f"missing schedule fields: {', '.join(sorted(missing))}")
     if extra:
         raise ScheduleConfigurationError(f"unknown schedule fields: {', '.join(sorted(extra))}")
-    notifications = document["notifications"]
-    if not isinstance(notifications, bool):
-        raise ScheduleConfigurationError("notifications must be true or false")
     return ScheduleConfig(
         repository_directory=_absolute_path(document["repository_directory"], "repository_directory"),
         lists_directory=_absolute_path(document["lists_directory"], "lists_directory"),
         generation_time=parse_time(document["generation_time"], "generation_time"),
-        codex_time=parse_time(document["codex_time"], "codex_time"),
-        notifications=notifications,
     )
 
 
@@ -96,7 +87,6 @@ def render_launchd(config: ScheduleConfig, label: str) -> str:
         "EnvironmentVariables": {
             "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin",
             "TODO_LISTS_DIR": str(config.lists_directory),
-            "TODO_NOTIFY": "1" if config.notifications else "0",
         },
         "StartCalendarInterval": {
             "Hour": config.generation_time.hour,

@@ -27,7 +27,7 @@ def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
     )
     configure_command = commands.add_parser(
         "configure", help="configure scheduling",
-        description="Write an explicit local configuration for launchd and the Codex follow-up.",
+        description="Write an explicit local configuration for launchd list generation.",
     )
     configure_command.add_argument(
         "--config", type=Path, default=DEFAULT_CONFIG, metavar="FILE",
@@ -45,13 +45,6 @@ def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
         "--generation-time", required=True, metavar="HH:MM",
         help="local 24-hour time when launchd creates and renders the list",
     )
-    configure_command.add_argument(
-        "--codex-time", required=True, metavar="HH:MM",
-        help="local 24-hour time for the separate Codex follow-up",
-    )
-    notifications = configure_command.add_mutually_exclusive_group(required=True)
-    notifications.add_argument("--notify", action="store_true", help="show a macOS notification after rendering")
-    notifications.add_argument("--no-notify", action="store_true", help="do not show a macOS notification")
     configure_command.add_argument("--replace", action="store_true", help="replace an existing configuration file")
     show = commands.add_parser(
         "show", help="show scheduling configuration",
@@ -97,8 +90,6 @@ def run(args: argparse.Namespace) -> int:
                 "repository_directory": str(args.repository_dir),
                 "lists_directory": str(args.lists_dir),
                 "generation_time": args.generation_time,
-                "codex_time": args.codex_time,
-                "notifications": args.notify,
             })
             write_text_atomic(args.config.resolve(), config.to_json(), replace=args.replace)
             print(f"wrote {args.config.resolve()}")
