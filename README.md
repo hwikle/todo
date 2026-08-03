@@ -11,6 +11,7 @@ backlog/someday.md             Persistent unprioritized ideas
 bin/todo                       Task CLI and validator
 bin/create-daily-todo          Daily generator entry point
 bin/convert-todos             Markdown-to-canonical-JSON converter
+bin/render-todos              Canonical-JSON-to-Markdown renderer
 bin/todo-config                Configuration helper entry point
 bin/validate-todos             Standalone schema validator
 bin/setup                      Local dependency setup
@@ -88,6 +89,18 @@ Each Markdown occurrence becomes a distinct canonical task with a fresh ID.
 Four-space nesting becomes dependency references, and nested tasks inherit the
 priority of their Markdown section. Conversion validates the complete document
 and refuses to overwrite an existing `todo.json`.
+
+Render validated canonical JSON as ID-free category Markdown:
+
+```text
+bin/render-todos --output-dir /path/to/review todos/2026-08-02/todo.json
+bin/render-todos --replace todos/2026-08-02/todo.json
+```
+
+Every category member appears in its own priority section. Dependencies are also
+rendered recursively beneath tasks that depend on them, so one canonical task
+may appear more than once. A nested task displays its priority when it differs
+from the surrounding section.
 
 > **Schema transition:** The schemas now describe the forthcoming canonical JSON
 > model. The current Markdown validator and generator still emit the legacy

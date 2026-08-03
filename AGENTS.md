@@ -81,6 +81,7 @@ bin/validate-todos path/to/todo-list.json
 bin/validate-todos --strict path/to/todo-list.json
 python3 tests/test_schema_validation.py
 python3 tests/test_markdown_conversion.py
+python3 tests/test_markdown_rendering.py
 ```
 
 Legacy verification commands, to be restored after migration, are:
