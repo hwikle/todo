@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 from todo_model import Priority
 
@@ -35,8 +35,4 @@ def priority_policy_from_schema(schema: dict[str, Any]) -> PriorityPolicy:
         raise PriorityConfigurationError(
             "priority.schema.json: x-order must contain each enum value exactly once"
         )
-    if set(ordered) != {"must", "should", "could"}:
-        raise PriorityConfigurationError(
-            "priority.schema.json: canonical priorities must be must, should, and could"
-        )
-    return PriorityPolicy(cast(tuple[Priority, ...], tuple(ordered)))
+    return PriorityPolicy(tuple(ordered))

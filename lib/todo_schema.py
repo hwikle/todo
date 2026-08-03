@@ -41,10 +41,21 @@ class CanonicalSchemaBundle:
             (schema["$id"], Resource.from_contents(schema))
             for schema in self.schemas.values()
         ]
-        registry = Registry().with_resources(resources)
+        self.registry = Registry().with_resources(resources)
         self.validator = Draft202012Validator(
             self.schemas["todo-list.schema.json"],
-            registry=registry,
+            registry=self.registry,
+            format_checker=FormatChecker(),
+        )
+
+    def validator_for(self, schema_name: str) -> Draft202012Validator:
+        try:
+            schema = self.schemas[schema_name]
+        except KeyError as exc:
+            raise SchemaConfigurationError(f"unknown canonical schema {schema_name!r}") from exc
+        return Draft202012Validator(
+            schema,
+            registry=self.registry,
             format_checker=FormatChecker(),
         )
 

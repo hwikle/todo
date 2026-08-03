@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal, TypedDict
 
 
-Priority = Literal["must", "should", "could"]
+Priority = str
 DeadlineKind = Literal["hard", "soft"]
 
 
