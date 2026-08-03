@@ -1,84 +1,44 @@
 # Installation
 
-Daily TODO requires macOS or another Unix-like system, Python 3.9 or newer, and
-Git. Dependencies are installed in a repository-local virtual environment; the
-setup process does not modify the system Python installation.
+Daily TODO requires Python 3.9 or newer. macOS is required only for the optional
+`launchd` integration.
 
-## Initial setup
-
-From the repository root, run:
+From the repository root, create the local virtual environment and install the
+locked dependencies:
 
 ```text
 bin/setup
 ```
 
-This creates `.venv/` and installs the exact dependency versions recorded in
-`requirements.lock`. The environment is local to this repository and is not
-committed to Git.
-
-Validate a canonical TODO-list JSON document with:
+Either run `bin/todo` directly or add it to the current shell:
 
 ```text
-bin/validate-todos path/to/todo-list.json
+source activate.sh
+todo --help
 ```
 
-Warnings are reported without causing failure. To promote warnings to errors:
+`activate.sh` changes only the current shell's `PATH`. It does not modify shell
+startup files or install anything globally. Command wrappers select the
+repository-local environment regardless of the current working directory.
+
+To recreate the environment, remove `.venv/` and rerun `bin/setup`. Dependency
+intent is recorded in `pyproject.toml`; exact versions are in
+`requirements.lock`.
+
+Run development checks with:
 
 ```text
-bin/validate-todos --strict path/to/todo-list.json
-```
-
-The `todos/` and `backlog/` directories are created by commands as needed and
-are ignored by Git. No user task data is installed or version-controlled.
-
-Run any repository command from another directory by using its absolute path;
-input and output paths themselves may also be absolute. Command wrappers locate
-the repository-local environment independently of the current directory.
-
-## Recreate the environment
-
-Remove `.venv/` and run `bin/setup` again. No global package cleanup is needed.
-
-## Update dependencies
-
-Dependency intent is recorded in `pyproject.toml`; exact resolved versions are
-recorded in `requirements.lock`. Update dependencies deliberately in a fresh
-environment. Install the dependency constraint recorded in `pyproject.toml`,
-test the validator, and regenerate the lock file with:
-
-```text
-.venv/bin/python -m pip install \
-  'jsonschema>=4,<5' 'mypy>=1.11,<2' 'types-jsonschema>=4,<5'
-.venv/bin/python -m pip freeze > requirements.lock
-```
-
-Review both the dependency changes and validation results before committing an
-updated lock file.
-
-## Development checks
-
-The locked development environment includes `mypy`. Run static checks from the
-repository root with:
-
-```text
+.venv/bin/python -m unittest discover -s tests -v
 .venv/bin/mypy
 ```
 
-## Scheduling note
-
-The optional `launchd` workflow invokes `bin/create-daily-todo`, not a global
-Python executable. Repository commands select the local environment and keep
-scheduled behavior consistent with interactive use. Installing or enabling the
-scheduler remains an explicit manual step because it writes outside the
-repository.
-
-Render the neutral scheduler template into the current account's LaunchAgents
-directory with:
+Optional scheduling is installed only by an explicit command:
 
 ```text
-bin/install-launchd
+todo schedule install
+todo schedule status
 ```
 
-The installer does not enable the schedule. Inspect and validate
-`$HOME/Library/LaunchAgents/local.daily-todo.plist`, then enable it explicitly
-with `launchctl` as described in `README.md`.
+This writes and loads `~/Library/LaunchAgents/local.daily-todo.plist`. Remove it
+with `todo schedule uninstall`. The ordinary task, list, view, import, and
+category commands neither inspect nor modify scheduler state.

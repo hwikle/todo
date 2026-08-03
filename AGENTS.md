@@ -1,76 +1,50 @@
 # Repository guidance
 
-This repository contains software for managing daily TODO lists. User data under
-`todos/` and `backlog/` is local and ignored by Git.
+This repository contains software for managing TODO lists. User data under
+`todos/` and `backlog/` is local, ignored by Git, and must not be added to
+repository history.
 
 ## Source of truth
 
-- `todos/YYYY-MM-DD/todo.json` is the canonical daily list.
-- Category Markdown files are deterministic, ID-free views generated from JSON.
-- Only checkbox markers may be edited directly in generated Markdown.
-- Run `bin/sync-todos` after checkbox edits. It fails on structural changes or
-  conflicting states across repeated appearances.
-- Use `bin/add-todo` for task creation. For unsupported structural changes,
-  edit canonical JSON, validate it, and rerender.
+- Canonical lists are JSON documents; Markdown files are deterministic, ID-free views.
 - Never infer shared task identity from matching names.
+- Only checkbox markers may be edited in generated Markdown.
+- Synchronization must reject structural edits and conflicting repeated states.
+- Priority and deadline-kind values come from canonical schemas.
+- Category configuration lives in `config/task-types.conf`.
 
-## Canonical model
+## Command boundaries
 
-- Every task has a unique canonical UUIDv4 ID, completion state, and
-  dependency list.
-- Priority is optional and ordered by `schema/priority.schema.json`.
-- A dependency may have the same or lower priority than the task that depends on
-  it, never a higher priority.
-- A completed task may not have an incomplete dependency.
-- Categories are explicit named collections through category memberships.
-- Category membership and dependency relationships are independent.
-- Ambiguities are validation errors. `--strict` promotes advisory warnings to
-  errors.
+- `todo task` owns canonical task inspection and mutation.
+- `todo list` owns list creation and validation.
+- `todo view` owns Markdown rendering and checkbox synchronization.
+- `todo import` owns conversion from external formats.
+- `todo category` owns future-list category configuration.
+- `todo schedule` owns the optional local `launchd` lifecycle.
+- `bin/setup` owns local dependency installation.
 
-## Commands
+Commands must not discover list storage. Data transformations print to stdout
+unless `--output` is explicit, and must not overwrite without `--replace`.
+List creation must remain independent from rendering and scheduling. The
+scheduler adapter may compose those commands using explicit paths but must not
+duplicate their domain logic.
 
-```text
-bin/validate-todos todos/YYYY-MM-DD/todo.json
-bin/add-todo "Task name" --output todos/YYYY-MM-DD/todo.json --category work
-bin/convert-todos todos/YYYY-MM-DD
-bin/migrate-task-ids todos/YYYY-MM-DD/todo.json
-bin/render-todos --replace todos/YYYY-MM-DD/todo.json
-bin/sync-todos todos/YYYY-MM-DD/todo.json
-bin/generate-todos --date YYYY-MM-DD
-bin/generate-todos --date YYYY-MM-DD --previous PATH --output PATH
-bin/create-daily-todo --date YYYY-MM-DD
-```
+## Canonical invariants
 
-`bin/generate-todos` owns scheduler-independent canonical creation and
-carry-forward. `bin/create-daily-todo` is the thin render-enabled entry point for
-schedulers. Schedulers must not duplicate generation logic.
-
-Input and output paths are configurable. Alternate outputs never overwrite
-existing files unless the relevant command explicitly receives `--replace`.
-Combined Markdown is presentation-only and cannot be synchronized. `--strict`
-promotes warnings for conversion, validation, rendering, synchronization, and
-generation.
-
-Canonical generation reads daily category definitions from
-`config/task-types.conf`. Use `bin/todo-config` to inspect or add definitions.
-Priority and deadline-kind values come from canonical schemas.
+- Task IDs are unique canonical UUIDv4 strings.
+- Dependency and category references resolve uniquely.
+- Dependencies are acyclic and may have the same or lower priority than their parents.
+- Completed tasks have no incomplete dependencies.
+- Category assignment is explicit and independent of dependency relationships.
+- Ambiguity is an error; `--strict` promotes advisory warnings to errors.
 
 ## Verification
 
 ```text
-.venv/bin/python tests/test_schema_validation.py
-.venv/bin/python tests/test_markdown_conversion.py
-.venv/bin/python tests/test_markdown_rendering.py
-.venv/bin/python tests/test_checkbox_sync.py
-.venv/bin/python tests/test_canonical_generation.py
-.venv/bin/python tests/test_generation_independent.py
-.venv/bin/python tests/test_category_config.py
-.venv/bin/python tests/test_task_ids.py
-.venv/bin/python tests/test_add_todo.py
-.venv/bin/python tests/test_repository_privacy.py
+.venv/bin/python -m unittest discover -s tests -v
 .venv/bin/mypy
 plutil -lint launchd/local.daily-todo.plist.in
 ```
 
-Never install or enable `launchd`, create or modify a scheduled Codex task, make
-a Git commit, or disable another task without explicit user approval.
+Never install or remove the `launchd` job, modify an external scheduled Codex
+task, commit changes, or rewrite history without explicit user approval.

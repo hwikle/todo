@@ -1,239 +1,110 @@
 # Daily TODO
 
-A local canonical-JSON task system with ID-free Markdown views, validation,
-checkbox synchronization, daily carry-forward, and optional macOS scheduling.
-The repository contains software only; personal data under `todos/` and
-`backlog/` is ignored by Git.
+Daily TODO is a local canonical-JSON task system with ID-free Markdown views,
+schema and semantic validation, checkbox synchronization, carry-forward, and an
+optional macOS schedule. Personal list data under `todos/` and `backlog/` is
+ignored by Git.
 
-## Layout
+Run `bin/setup`, then either invoke `bin/todo` directly or source `activate.sh`
+to make `todo` available in the current shell. Every data-transforming command
+prints to standard output by default. Pass `--output PATH` to persist a result;
+an existing destination requires `--replace`. Commands never discover list
+storage implicitly.
 
-```text
-bin/convert-todos              Legacy Markdown-to-JSON migration
-bin/migrate-task-ids           One-time canonical UUIDv4 migration
-bin/add-todo                   Incremental canonical task creation
-bin/render-todos               ID-free Markdown rendering
-bin/sync-todos                 Checkbox-only view synchronization
-bin/validate-todos             Canonical schema and semantic validation
-bin/generate-todos             Scheduler-independent daily generation
-bin/create-daily-todo           Render-enabled scheduler entry point
-bin/todo-config                 Canonical category configuration
-bin/setup                       Local dependency setup
-bin/install-launchd             Render and install the optional macOS schedule
-lib/                            Canonical implementation
-schema/                         JSON Schema contracts
-tests/                          Synthetic regression tests
-launchd/                        Optional macOS scheduler template
-todos/YYYY-MM-DD/todo.json      Ignored canonical user data
-todos/YYYY-MM-DD/*.md           Ignored generated category views
-```
+## Commands
 
-See `INSTALL.md` for setup instructions.
-
-Canonical transformations live in filesystem-independent `lib/todo_*` domain
-modules. CLI modules orchestrate those transformations through shared
-repository and persistence adapters. Shared `TypedDict` definitions describe
-the JSON-compatible model for static checking; JSON Schema remains the runtime
-authority.
-
-All transformation commands accept explicit input paths. Alternative output
-paths are supported where a command writes data; existing alternate outputs are
-not overwritten unless `--replace` is explicitly available and supplied.
-
-## Canonical workflow
-
-Add a task to `todo.json` in the current directory:
+Create or inspect tasks:
 
 ```text
-bin/add-todo "Draft proposal" --category work --priority should
+todo task add todo.json "Draft proposal" --category work --priority should
+todo task add todo.json "Write section" --category work --dependency-of "Draft proposal"
+todo task edit todo.json "Draft proposal" --name "Draft project proposal"
+todo task complete todo.json "Draft project proposal"
+todo task reopen todo.json "Draft project proposal"
+todo task remove todo.json "Draft project proposal"
+todo task show todo.json "Draft project proposal"
+todo task list todo.json
 ```
 
-Select another canonical file and add optional details or dependencies:
+Mutating task commands still print the prospective JSON unless `--output` is
+provided. To replace the input explicitly, use `--output todo.json --replace`.
+Task and category selectors match an ID first, then an exact unique name.
+`--depends-on` makes the new task depend on an existing task;
+`--dependency-of` adds the new task as a dependency of an existing task.
+Priority choices come from `schema/priority.schema.json`.
+
+Create and validate lists:
 
 ```text
-bin/add-todo "Review proposal" --output /path/to/todo.json \
-  --category work --description "Review the first complete draft." \
-  --depends-on "Draft proposal"
+todo list create --date 2026-08-03
+todo list create --date 2026-08-03 --previous prior.json --output next.json
+todo list validate todo.json
+todo list validate --strict path/to/lists
 ```
 
-At least one explicit category is required. Existing-task selectors match an
-ID first, then an exact unique name; missing or ambiguous matches fail without
-changing JSON. Valid priority choices come from `schema/priority.schema.json`.
-The command assumes the existing document is valid, checks only the new task
-and affected relationships, and atomically updates canonical JSON. It never
-reads or writes rendered Markdown; rerender explicitly when desired.
+`todo list create` carries incomplete tasks from an explicitly supplied prior
+list. It does not render Markdown or inspect a scheduler.
 
-Validate a daily list:
+Render and synchronize ID-free Markdown views:
 
 ```text
-bin/validate-todos todos/2026-08-02/todo.json
-bin/validate-todos --strict todos/2026-08-02/todo.json
+todo view render todo.json
+todo view render todo.json --output combined.md
+todo view render todo.json --output-dir review
+todo view sync todo.json --view-dir review
+todo view sync todo.json --view-dir review --output todo.json --replace
 ```
 
-Render ID-free Markdown views:
+Only checkbox markers may be edited in generated category views. Structural
+edits and conflicting states across repeated task appearances fail. Combined
+Markdown is presentation-only and cannot be synchronized.
+
+Import legacy Markdown, and manage category configuration:
 
 ```text
-bin/render-todos --output-dir /path/to/review todos/2026-08-02/todo.json
-bin/render-todos --replace todos/2026-08-02/todo.json
+todo import markdown path/to/dated-markdown
+todo category list
+todo category add travel "Travel"
+todo category rename travel "Trips and Travel"
+todo category remove travel
 ```
 
-Without `--output-dir`, category files are written beside the input JSON.
-Existing category files require `--replace`.
+Category configuration changes affect future list creation only; they do not
+rewrite existing canonical documents.
 
-Every explicit category member appears in its own priority section.
-Dependencies are also rendered recursively, so one canonical task may appear
-more than once. Nested tasks display their priority when it differs from the
-surrounding section.
+## Canonical model and validation
 
-Render all categories into one presentation document:
+Every task has a UUIDv4 ID, completion state, dependency list, explicit category
+membership, and optional priority, description, and deadline. Dependencies may
+have the same or lower priority than tasks that depend on them. Completed tasks
+cannot have incomplete dependencies. Validation detects invalid schemas,
+unresolved or duplicate references, cycles, completion inconsistency, priority
+inversions, invalid dates, and conflicting repeated checkboxes. Advisory issues
+become errors under `--strict`.
+
+## Optional macOS schedule
+
+The scheduler adapter runs at 5:55 AM, computes explicit current- and
+previous-day paths, creates canonical JSON, then renders category views as a
+separate operation. Manage it with:
 
 ```text
-bin/render-todos --combined-output /path/to/todo.md path/to/todo.json
-bin/render-todos --stdout path/to/todo.json
+todo schedule install
+todo schedule status
+todo schedule uninstall
 ```
 
-Combined views preserve canonical category order and separate categories with
-Markdown horizontal rules. They are presentation outputs and are not
-synchronization inputs. An existing `--combined-output` file requires
-`--replace`.
+Installation writes and loads
+`~/Library/LaunchAgents/local.daily-todo.plist`. Use `--replace` to replace an
+existing installation. Scheduling is optional; all list and view commands work
+without it.
 
-After editing checkbox markers in Markdown, synchronize them into JSON:
+## Development
 
 ```text
-bin/sync-todos todos/2026-08-02/todo.json
-bin/sync-todos --output /path/to/updated.json todos/2026-08-02/todo.json
-bin/sync-todos --stdout todos/2026-08-02/todo.json
-bin/sync-todos --dry-run todos/2026-08-02/todo.json
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/mypy
+plutil -lint launchd/local.daily-todo.plist.in
 ```
 
-Synchronization requires every non-checkbox character to match a fresh
-canonical render. Structural edits and conflicting states across repeated
-appearances fail without changing JSON. By default, category views are read from
-the input JSON's directory and the JSON is updated in place. `--view-dir`
-selects another category-view directory. `--output` refuses existing files and
-must differ from the input; `--stdout` and `--dry-run` never write.
-
-## Daily generation
-
-Generate canonical JSON without involving a scheduler:
-
-```text
-bin/generate-todos
-bin/generate-todos --date 2026-08-03
-bin/generate-todos --date 2026-08-03 --previous /path/to/prior.json \
-  --output /path/to/generated.json
-```
-
-Without `--previous`, generation discovers the latest earlier `todo.json`
-beneath `--data-dir` (default: `todos/`). Without `--output`, it writes
-`<data-dir>/<date>/todo.json`. An explicit output path does not change where an
-implicit previous list is discovered. `--render` writes category views beside
-the selected JSON output. Explicit previous lists must predate the target.
-
-Generate JSON and category views through the scheduler entry point:
-
-```text
-bin/create-daily-todo
-bin/create-daily-todo --date 2026-08-03
-```
-
-This entry point accepts the generator's path options and always enables
-rendering. If the target JSON already exists, generation exits successfully
-without changing JSON or Markdown.
-
-Generation validates the latest prior canonical list, carries incomplete tasks
-with stable IDs and live dependency references, retains explicit memberships,
-adds newly configured daily categories, validates the new document, and writes
-atomically. Existing canonical lists are never overwritten.
-
-## One-time Markdown migration
-
-Convert a dated directory of legacy category Markdown:
-
-```text
-bin/convert-todos --stdout todos/2026-08-02
-bin/convert-todos todos/2026-08-02
-```
-
-The converter does not rely on Markdown IDs. Every occurrence receives a fresh
-ID, four-space nesting becomes dependencies, every category assignment is
-explicit, and identical names remain distinct. Output defaults to
-`<source>/todo.json`; `--output` selects another path, `--stdout` writes
-nothing, and existing output is never replaced.
-
-Canonical files created with the former shortened task IDs can be migrated in
-place to UUIDv4 IDs and references:
-
-```text
-bin/migrate-task-ids /path/to/todo.json
-```
-
-The migration validates the rewritten canonical document before replacing the
-original file atomically.
-
-## Validation policy
-
-Validation combines Draft 2020-12 schemas with whole-document checks for:
-
-- Unique task and category IDs.
-- Resolved dependency and category references.
-- Dependency cycles and self-dependencies.
-- Completion consistency.
-- Ordered dependency priorities.
-- Real calendar dates.
-- Duplicate category/task memberships.
-- Conflicting repeated checkbox states during synchronization.
-
-Missing priorities, uncategorized tasks, empty categories, multiple-category
-membership, and duplicate category display names are warnings. `--strict`
-promotes them to errors. Structural ambiguity is always an error.
-
-The same `--strict` policy is available during conversion, rendering,
-synchronization, and generation. Due dates support year, optional month,
-optional day, and optional time in progressively specific order.
-
-## Category configuration
-
-Canonical generation reads daily categories from `config/task-types.conf`.
-Add a category without changing code with:
-
-```text
-bin/todo-config add-type travel "Travel"
-```
-
-List configured categories with `bin/todo-config list-types`. Priority and
-deadline-kind values are defined by their canonical schemas rather than mutable
-configuration files.
-
-## Optional launchd schedule
-
-The neutral template `launchd/local.daily-todo.plist.in` invokes
-`bin/create-daily-todo` at 5:55 AM. The installer substitutes the current
-repository path when it creates a machine-local property list. Review the
-rendered file before enabling it:
-
-```text
-bin/install-launchd
-plutil -lint "$HOME/Library/LaunchAgents/local.daily-todo.plist"
-launchctl bootstrap "gui/$(id -u)" \
-  "$HOME/Library/LaunchAgents/local.daily-todo.plist"
-```
-
-Do not enable a second daily generator in Codex while `launchd` is active.
-
-## Scheduled Codex check-in
-
-A 6:00 AM Codex task can return to one persistent conversation, validate the
-canonical JSON, and display the generated Markdown. It should not generate the
-day itself. ChatGPT-rendered checkboxes are snapshots; synchronize local
-Markdown checkbox edits with `bin/sync-todos`.
-
-Suggested prompt:
-
-```text
-At 6:00 AM local time, return to this conversation. In the Daily TODO
-repository, locate today's todos/YYYY-MM-DD/todo.json and validate it without
-modifying task data.
-If it is missing or invalid, report the problem and stop. Otherwise read the
-generated category Markdown files and post one concise checklist grouped by
-category and priority. Do not expose task IDs and do not run generation.
-```
+See `INSTALL.md` for setup details and `AGENTS.md` for repository invariants.
