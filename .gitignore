@@ -1,4 +1,6 @@
 .logs/
 .venv/
+/backlog/
+/todos/
 *.tmp
 __pycache__/
