@@ -1,0 +1,20 @@
+#!/bin/zsh
+set -eu
+
+ROOT=${0:A:h:h}
+TEMPLATE="$ROOT/launchd/local.daily-todo.plist.in"
+DESTINATION="$HOME/Library/LaunchAgents/local.daily-todo.plist"
+
+mkdir -p "$ROOT/.logs" "${DESTINATION:h}"
+
+if [[ -e "$DESTINATION" ]]; then
+  print -u2 "Refusing to overwrite $DESTINATION"
+  exit 1
+fi
+
+content=$(<"$TEMPLATE")
+print -r -- "${content//__TODO_ROOT__/$ROOT}" > "$DESTINATION"
+plutil -lint "$DESTINATION"
+
+print "Installed disabled launchd configuration at $DESTINATION"
+print "Review it, then enable it explicitly with launchctl bootstrap."

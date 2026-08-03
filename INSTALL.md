@@ -61,3 +61,14 @@ Python executable. Repository commands select the local environment and keep
 scheduled behavior consistent with interactive use. Installing or enabling the
 scheduler remains an explicit manual step because it writes outside the
 repository.
+
+Render the neutral scheduler template into the current account's LaunchAgents
+directory with:
+
+```text
+bin/install-launchd
+```
+
+The installer does not enable the schedule. Inspect and validate
+`$HOME/Library/LaunchAgents/local.daily-todo.plist`, then enable it explicitly
+with `launchctl` as described in `README.md`.

@@ -68,7 +68,8 @@ python3 tests/test_checkbox_sync.py
 python3 tests/test_canonical_generation.py
 python3 tests/test_generation_independent.py
 python3 tests/test_legacy_guard.py
-plutil -lint launchd/local.daily-todo.plist
+python3 tests/test_repository_privacy.py
+plutil -lint launchd/local.daily-todo.plist.in
 ```
 
 Never install or enable `launchd`, create or modify a scheduled Codex task, make

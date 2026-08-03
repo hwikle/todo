@@ -15,6 +15,7 @@ bin/validate-todos             Canonical schema and semantic validation
 bin/generate-todos             Scheduler-independent daily generation
 bin/create-daily-todo           Render-enabled scheduler entry point
 bin/setup                       Local dependency setup
+bin/install-launchd             Render and install the optional macOS schedule
 lib/                            Canonical implementation
 schema/                         JSON Schema contracts
 tests/                          Synthetic regression tests
@@ -164,17 +165,16 @@ canonical `must`/`should`/`could` and `hard`/`soft` schema values.
 
 ## Optional launchd schedule
 
-The template `launchd/local.daily-todo.plist` invokes
-`bin/create-daily-todo` at 5:55 AM. Installation writes outside this repository
-and is intentionally manual:
+The neutral template `launchd/local.daily-todo.plist.in` invokes
+`bin/create-daily-todo` at 5:55 AM. The installer substitutes the current
+repository path when it creates a machine-local property list. Review the
+rendered file before enabling it:
 
 ```text
-mkdir -p $TODO_REPO/.logs
-plutil -lint $TODO_REPO/launchd/local.daily-todo.plist
-cp $TODO_REPO/launchd/local.daily-todo.plist \
-  $HOME/Library/LaunchAgents/local.daily-todo.plist
-launchctl bootstrap gui/$(id -u) \
-  $HOME/Library/LaunchAgents/local.daily-todo.plist
+bin/install-launchd
+plutil -lint "$HOME/Library/LaunchAgents/local.daily-todo.plist"
+launchctl bootstrap "gui/$(id -u)" \
+  "$HOME/Library/LaunchAgents/local.daily-todo.plist"
 ```
 
 Do not enable a second daily generator in Codex while `launchd` is active.
@@ -189,8 +189,9 @@ Markdown checkbox edits with `bin/sync-todos`.
 Suggested prompt:
 
 ```text
-At 6:00 AM local time, return to this conversation. In $TODO_REPO, locate
-today's todos/YYYY-MM-DD/todo.json and validate it without modifying task data.
+At 6:00 AM local time, return to this conversation. In the Daily TODO
+repository, locate today's todos/YYYY-MM-DD/todo.json and validate it without
+modifying task data.
 If it is missing or invalid, report the problem and stop. Otherwise read the
 generated category Markdown files and post one concise checklist grouped by
 category and priority. Do not expose task IDs and do not run generation.
