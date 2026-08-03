@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Iterable
 
 from todo_validation import CanonicalTodoValidator, ValidationConfigurationError
+from todo_cli import print_issues
+from todo_io import load_json
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -53,21 +55,14 @@ def main() -> int:
     warning_count = 0
     for path in paths:
         try:
-            document = json.loads(path.read_text())
+            document = load_json(path)
         except (OSError, json.JSONDecodeError) as exc:
             print(f"{path}: error: cannot load JSON: {exc}", file=sys.stderr)
             failures += 1
             continue
         issues = validator.validate(document)
-        for issue in issues:
-            effective = "error" if args.strict and issue.severity == "warning" else issue.severity
-            suffix = " (strict)" if effective != issue.severity else ""
-            print(f"{path}:{issue.location}: {effective}{suffix}: {issue.message}", file=sys.stderr)
-            if issue.severity == "warning":
-                warning_count += 1
-        if any(issue.severity == "error" for issue in issues) or (
-            args.strict and any(issue.severity == "warning" for issue in issues)
-        ):
+        warning_count += sum(issue.severity == "warning" for issue in issues)
+        if print_issues(issues, args.strict, f"{path}:"):
             failures += 1
 
     if failures:

@@ -5,11 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 
+from todo_cli import print_issues
+from todo_io import load_json, write_text_atomic
 from todo_render import render_document
 from todo_sync import synchronize_views
 from todo_validation import CanonicalTodoValidator, ValidationConfigurationError
@@ -30,31 +30,6 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
-def write_atomic(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
-
-
-def print_issues(issues: list, strict: bool) -> bool:
-    failed = False
-    for issue in issues:
-        effective = "error" if strict and issue.severity == "warning" else issue.severity
-        suffix = " (strict)" if effective != issue.severity else ""
-        print(f"{issue.location}: {effective}{suffix}: {issue.message}", file=sys.stderr)
-        failed = failed or effective == "error"
-    return failed
-
-
 def main() -> int:
     args = parser().parse_args()
     input_path = args.todo_list.resolve()
@@ -66,7 +41,7 @@ def main() -> int:
         print(f"error: refusing to overwrite existing output: {output_path}", file=sys.stderr)
         return 2
     try:
-        document = json.loads(input_path.read_text())
+        document = load_json(input_path)
         validator = CanonicalTodoValidator(ROOT / "schema")
     except (OSError, json.JSONDecodeError, ValidationConfigurationError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -101,7 +76,7 @@ def main() -> int:
         return 0
     if output_path:
         try:
-            write_atomic(output_path, content)
+            write_text_atomic(output_path, content, replace=False)
         except OSError as exc:
             print(f"error: cannot write synchronized JSON: {exc}", file=sys.stderr)
             return 2
@@ -114,7 +89,7 @@ def main() -> int:
         print("Checkboxes already match canonical JSON; no changes made.")
         return 0
     try:
-        write_atomic(input_path, content)
+        write_text_atomic(input_path, content)
     except OSError as exc:
         print(f"error: cannot update canonical JSON: {exc}", file=sys.stderr)
         return 2

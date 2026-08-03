@@ -6,9 +6,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 
 from todo_generation import (
@@ -17,6 +15,8 @@ from todo_generation import (
     generate_document,
     latest_previous_list,
 )
+from todo_cli import print_issues
+from todo_io import load_json, write_text_atomic
 from todo_render import render_document
 from todo_validation import CanonicalTodoValidator, ValidationConfigurationError
 
@@ -33,31 +33,6 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--render", action="store_true", help="also render category Markdown")
     result.add_argument("--strict", action="store_true", help="treat warnings as errors")
     return result
-
-
-def write_atomic(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
-
-
-def print_issues(issues: list, strict: bool, prefix: str = "") -> bool:
-    failed = False
-    for issue in issues:
-        effective = "error" if strict and issue.severity == "warning" else issue.severity
-        suffix = " (strict)" if effective != issue.severity else ""
-        print(f"{prefix}{issue.location}: {effective}{suffix}: {issue.message}", file=sys.stderr)
-        failed = failed or effective == "error"
-    return failed
 
 
 def main() -> int:
@@ -78,7 +53,7 @@ def main() -> int:
         previous_path = args.previous.resolve() if args.previous else latest_previous_list(
             data_dir, target_date
         )
-        previous = json.loads(previous_path.read_text()) if previous_path else None
+        previous = load_json(previous_path) if previous_path else None
     except (OSError, json.JSONDecodeError, GenerationError, ValidationConfigurationError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -103,11 +78,11 @@ def main() -> int:
         print("Generated list is invalid; no output was written.", file=sys.stderr)
         return 1
     try:
-        write_atomic(target, json.dumps(document, indent=2, ensure_ascii=False) + "\n")
+        write_text_atomic(target, json.dumps(document, indent=2, ensure_ascii=False) + "\n")
         if args.render:
             rendered = render_document(document, list(validator.priority_policy.order))
             for name, view in rendered.items():
-                write_atomic(target.parent / name, view.content)
+                write_text_atomic(target.parent / name, view.content)
     except OSError as exc:
         print(f"error: cannot write generated TODO list: {exc}", file=sys.stderr)
         return 2

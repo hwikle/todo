@@ -4,12 +4,11 @@
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 
+from todo_cli import print_issues
+from todo_io import load_json, write_text_atomic
 from todo_render import combine_rendered, render_document
 from todo_validation import CanonicalTodoValidator, ValidationConfigurationError
 
@@ -29,36 +28,16 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
-def write_atomic(path: Path, content: str) -> None:
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
-
-
 def main() -> int:
     args = parser().parse_args()
     try:
-        document = json.loads(args.todo_list.read_text())
+        document = load_json(args.todo_list)
         validator = CanonicalTodoValidator(ROOT / "schema")
         issues = validator.validate(document)
     except (OSError, json.JSONDecodeError, ValidationConfigurationError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    for issue in issues:
-        effective = "error" if args.strict and issue.severity == "warning" else issue.severity
-        suffix = " (strict)" if effective != issue.severity else ""
-        print(f"{issue.location}: {effective}{suffix}: {issue.message}", file=sys.stderr)
-    if any(issue.severity == "error" for issue in issues) or (
-        args.strict and any(issue.severity == "warning" for issue in issues)
-    ):
+    if print_issues(issues, args.strict):
         print("Rendering failed validation; no files were written.", file=sys.stderr)
         return 1
 
@@ -73,7 +52,7 @@ def main() -> int:
             return 2
         try:
             destination.parent.mkdir(parents=True, exist_ok=True)
-            write_atomic(destination, combine_rendered(rendered))
+            write_text_atomic(destination, combine_rendered(rendered))
         except OSError as exc:
             print(f"error: cannot write combined Markdown: {exc}", file=sys.stderr)
             return 2
@@ -92,7 +71,7 @@ def main() -> int:
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
         for path, view in destinations.items():
-            write_atomic(path, view.content)
+            write_text_atomic(path, view.content)
     except OSError as exc:
         print(f"error: cannot write rendered Markdown: {exc}", file=sys.stderr)
         return 2
