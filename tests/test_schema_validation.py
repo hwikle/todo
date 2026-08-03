@@ -9,28 +9,30 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any, ClassVar, cast
 
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "lib"))
 
+from todo_model import Priority, Task, TodoList
 from todo_validation import CanonicalTodoValidator, validate_completion_observations
 
 
-def task(task_id: str, name: str, priority: str = "must", **overrides: object) -> dict[str, object]:
-    value: dict[str, object] = {
+def task(task_id: str, name: str, priority: Priority = "must", **overrides: object) -> Task:
+    value = cast(Task, {
         "id": task_id,
         "name": name,
         "priority": priority,
         "completed": False,
         "dependencies": [],
-    }
-    value.update(overrides)
+    })
+    cast(Any, value).update(overrides)
     return value
 
 
-def valid_document() -> dict[str, object]:
-    return {
+def valid_document() -> TodoList:
+    return cast(TodoList, {
         "date": "2042-01-02",
         "tasks": [
             task("aaaaaaaaaaaa", "Parent", dependencies=["bbbbbbbbbbbb"]),
@@ -40,18 +42,20 @@ def valid_document() -> dict[str, object]:
         "category_memberships": [
             {"category": "work", "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb"]}
         ],
-    }
+    })
 
 
 class CanonicalValidationTest(unittest.TestCase):
+    validator: ClassVar[CanonicalTodoValidator]
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.validator = CanonicalTodoValidator(ROOT / "schema")
 
-    def errors(self, document: dict[str, object]) -> list[str]:
+    def errors(self, document: TodoList) -> list[str]:
         return [issue.message for issue in self.validator.validate(document) if issue.severity == "error"]
 
-    def warnings(self, document: dict[str, object]) -> list[str]:
+    def warnings(self, document: TodoList) -> list[str]:
         return [issue.message for issue in self.validator.validate(document) if issue.severity == "warning"]
 
     def test_valid_document(self) -> None:

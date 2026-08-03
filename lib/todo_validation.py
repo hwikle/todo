@@ -6,8 +6,9 @@ import datetime as dt
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Sequence, cast
 
+from todo_model import Category, CategoryMembership, Task, TodoList
 from todo_schema import CanonicalSchemaBundle, SchemaConfigurationError
 
 
@@ -43,7 +44,6 @@ class CanonicalTodoValidator:
         self.schema_dir = bundle.schema_dir
         self.schemas = bundle.schemas
         self.priority_policy = bundle.priority_policy
-        self.priority_order = self.priority_policy.ranks
         self.validator = bundle.validator
 
     def validate(self, document: Any) -> list[Issue]:
@@ -56,17 +56,17 @@ class CanonicalTodoValidator:
         ]
         if issues or not isinstance(document, dict):
             return issues
-        issues.extend(self._validate_semantics(document))
+        issues.extend(self._validate_semantics(cast(TodoList, document)))
         return sorted(issues, key=lambda issue: (issue.location, issue.severity, issue.message))
 
-    def _validate_semantics(self, document: dict[str, Any]) -> list[Issue]:
+    def _validate_semantics(self, document: TodoList) -> list[Issue]:
         issues: list[Issue] = []
-        tasks: list[dict[str, Any]] = document["tasks"]
-        categories: list[dict[str, Any]] = document["categories"]
-        memberships: list[dict[str, Any]] = document["category_memberships"]
+        tasks: list[Task] = document["tasks"]
+        categories: list[Category] = document["categories"]
+        memberships: list[CategoryMembership] = document["category_memberships"]
 
-        task_indexes = self._indexes(tasks, "id")
-        category_indexes = self._indexes(categories, "id")
+        task_indexes = self._indexes(tasks)
+        category_indexes = self._indexes(categories)
         issues.extend(self._duplicate_id_issues(task_indexes, "tasks", "task"))
         issues.extend(self._duplicate_id_issues(category_indexes, "categories", "category"))
 
@@ -104,8 +104,8 @@ class CanonicalTodoValidator:
                         Issue("error", location, "completed task has an incomplete dependency")
                     )
                 if "priority" in task and "priority" in dependency:
-                    task_rank = self.priority_order[task["priority"]]
-                    dependency_rank = self.priority_order[dependency["priority"]]
+                    task_rank = self.priority_policy.rank(task["priority"])
+                    dependency_rank = self.priority_policy.rank(dependency["priority"])
                     if dependency_rank < task_rank:
                         issues.append(
                             Issue(
@@ -183,10 +183,10 @@ class CanonicalTodoValidator:
         return issues
 
     @staticmethod
-    def _indexes(values: Sequence[dict[str, Any]], field: str) -> dict[str, list[int]]:
+    def _indexes(values: Sequence[Task] | Sequence[Category]) -> dict[str, list[int]]:
         result: dict[str, list[int]] = {}
         for index, value in enumerate(values):
-            result.setdefault(value[field], []).append(index)
+            result.setdefault(value["id"], []).append(index)
         return result
 
     @staticmethod
@@ -207,7 +207,7 @@ class CanonicalTodoValidator:
         return result
 
     @staticmethod
-    def _validate_due_date(task: dict[str, Any], task_index: int) -> list[Issue]:
+    def _validate_due_date(task: Task, task_index: int) -> list[Issue]:
         if "due" not in task:
             return []
         due = task["due"]
@@ -219,7 +219,7 @@ class CanonicalTodoValidator:
 
     @staticmethod
     def _dependency_cycle_issues(
-        task_by_id: dict[str, dict[str, Any]], task_indexes: dict[str, list[int]]
+        task_by_id: dict[str, Task], task_indexes: dict[str, list[int]]
     ) -> list[Issue]:
         issues: list[Issue] = []
         state: dict[str, int] = {}

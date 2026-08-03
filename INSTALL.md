@@ -47,12 +47,22 @@ environment. Install the dependency constraint recorded in `pyproject.toml`,
 test the validator, and regenerate the lock file with:
 
 ```text
-.venv/bin/python -m pip install 'jsonschema>=4,<5'
+.venv/bin/python -m pip install \
+  'jsonschema>=4,<5' 'mypy>=1.11,<2' 'types-jsonschema>=4,<5'
 .venv/bin/python -m pip freeze > requirements.lock
 ```
 
 Review both the dependency changes and validation results before committing an
 updated lock file.
+
+## Development checks
+
+The locked development environment includes `mypy`. Run static checks from the
+repository root with:
+
+```text
+.venv/bin/mypy
+```
 
 ## Scheduling note
 

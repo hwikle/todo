@@ -6,3 +6,16 @@ requires-python = ">=3.9"
 dependencies = [
     "jsonschema>=4,<5",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.11,<2",
+    "types-jsonschema>=4,<5",
+]
+
+[tool.mypy]
+python_version = "3.9"
+files = ["lib", "tests"]
+strict = true
+show_error_codes = true
+pretty = true

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from todo_model import Priority
 
@@ -39,4 +39,4 @@ def priority_policy_from_schema(schema: dict[str, Any]) -> PriorityPolicy:
         raise PriorityConfigurationError(
             "priority.schema.json: canonical priorities must be must, should, and could"
         )
-    return PriorityPolicy(tuple(ordered))  # type: ignore[arg-type]
+    return PriorityPolicy(cast(tuple[Priority, ...], tuple(ordered)))

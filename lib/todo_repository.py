@@ -72,4 +72,6 @@ def latest_previous_list(data_dir: Path, target_date: str) -> Optional[Path]:
         candidate = child / "todo.json"
         if candidate.is_file():
             candidates.append((child.name, candidate))
-    return max(candidates, default=("", None), key=lambda item: item[0])[1]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: item[0])[1]

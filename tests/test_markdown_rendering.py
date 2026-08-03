@@ -9,17 +9,19 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar, cast
 
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "lib"))
 
+from todo_model import TodoList
 from todo_render import combine_rendered, render_document
 from todo_validation import CanonicalTodoValidator
 
 
-def document() -> dict[str, object]:
-    return {
+def document() -> TodoList:
+    return cast(TodoList, {
         "date": "2042-01-02",
         "tasks": [
             {
@@ -44,16 +46,20 @@ def document() -> dict[str, object]:
         "category_memberships": [
             {"category": "work", "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb"]}
         ],
-    }
+    })
 
 
 class MarkdownRenderingTest(unittest.TestCase):
+    validator: ClassVar[CanonicalTodoValidator]
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.validator = CanonicalTodoValidator(ROOT / "schema")
 
     def test_renders_id_free_repeated_dependencies(self) -> None:
-        rendered = render_document(document(), list(self.validator.priority_order))["work.md"]
+        rendered = render_document(
+            document(), list(self.validator.priority_policy.order)
+        )["work.md"]
         self.assertNotIn("task:", rendered.content)
         self.assertNotIn("aaaaaaaaaaaa", rendered.content)
         self.assertEqual(rendered.content.count("Shared dependency"), 2)
@@ -65,7 +71,9 @@ class MarkdownRenderingTest(unittest.TestCase):
         self.assertEqual(len(child_occurrences), 2)
 
     def test_renders_due_metadata_without_task_ids(self) -> None:
-        content = render_document(document(), list(self.validator.priority_order))["work.md"].content
+        content = render_document(
+            document(), list(self.validator.priority_policy.order)
+        )["work.md"].content
         self.assertIn(
             "<!-- due:2042-01-05 time:09:30 due-kind:hard -->",
             content,
@@ -103,7 +111,7 @@ class MarkdownRenderingTest(unittest.TestCase):
         expanded = document()
         expanded["categories"].append({"id": "health", "display_name": "Health"})
         expanded["category_memberships"].append({"category": "health", "tasks": []})
-        rendered = render_document(expanded, list(self.validator.priority_order))
+        rendered = render_document(expanded, list(self.validator.priority_policy.order))
         combined = combine_rendered(rendered)
         self.assertIn("# Work — 2042-01-02", combined)
         self.assertIn("\n---\n\n# Health — 2042-01-02", combined)

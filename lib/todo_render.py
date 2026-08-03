@@ -68,7 +68,7 @@ def render_document(
         lines = [f"# {category['display_name']} — {document['date']}", ""]
         occurrences: list[RenderedOccurrence] = []
         member_ids = memberships.get(category["id"], [])
-        section_order = list(priority_order)
+        section_order: list[str] = list(priority_order)
         if any("priority" not in tasks[task_id] for task_id in member_ids):
             section_order.append("unprioritized")
         for priority in section_order:

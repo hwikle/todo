@@ -14,6 +14,7 @@ bin/sync-todos                 Checkbox-only view synchronization
 bin/validate-todos             Canonical schema and semantic validation
 bin/generate-todos             Scheduler-independent daily generation
 bin/create-daily-todo           Render-enabled scheduler entry point
+bin/todo-config                 Canonical category configuration
 bin/setup                       Local dependency setup
 bin/install-launchd             Render and install the optional macOS schedule
 lib/                            Canonical implementation
@@ -25,6 +26,12 @@ todos/YYYY-MM-DD/*.md           Ignored generated category views
 ```
 
 See `INSTALL.md` for setup instructions.
+
+Canonical transformations live in filesystem-independent `lib/todo_*` domain
+modules. CLI modules orchestrate those transformations through shared
+repository and persistence adapters. Shared `TypedDict` definitions describe
+the JSON-compatible model for static checking; JSON Schema remains the runtime
+authority.
 
 All transformation commands accept explicit input paths. Alternative output
 paths are supported where a command writes data; existing alternate outputs are

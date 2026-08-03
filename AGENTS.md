@@ -55,14 +55,15 @@ Priority and deadline-kind values come from canonical schemas.
 ## Verification
 
 ```text
-python3 tests/test_schema_validation.py
-python3 tests/test_markdown_conversion.py
-python3 tests/test_markdown_rendering.py
-python3 tests/test_checkbox_sync.py
-python3 tests/test_canonical_generation.py
-python3 tests/test_generation_independent.py
-python3 tests/test_category_config.py
-python3 tests/test_repository_privacy.py
+.venv/bin/python tests/test_schema_validation.py
+.venv/bin/python tests/test_markdown_conversion.py
+.venv/bin/python tests/test_markdown_rendering.py
+.venv/bin/python tests/test_checkbox_sync.py
+.venv/bin/python tests/test_canonical_generation.py
+.venv/bin/python tests/test_generation_independent.py
+.venv/bin/python tests/test_category_config.py
+.venv/bin/python tests/test_repository_privacy.py
+.venv/bin/mypy
 plutil -lint launchd/local.daily-todo.plist.in
 ```
 

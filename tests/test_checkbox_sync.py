@@ -9,18 +9,20 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
 
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "lib"))
 
+from todo_model import TodoList
 from todo_render import render_document
 from todo_sync import synchronize_views
 from todo_validation import CanonicalTodoValidator
 
 
-def document() -> dict[str, object]:
-    return {
+def document() -> TodoList:
+    return cast(TodoList, {
         "date": "2042-01-02",
         "tasks": [
             {
@@ -42,7 +44,7 @@ def document() -> dict[str, object]:
         "category_memberships": [
             {"category": "work", "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb"]}
         ],
-    }
+    })
 
 
 class CheckboxSyncTest(unittest.TestCase):
@@ -51,7 +53,9 @@ class CheckboxSyncTest(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.validator = CanonicalTodoValidator(ROOT / "schema")
         self.document = document()
-        self.rendered = render_document(self.document, list(self.validator.priority_order))
+        self.rendered = render_document(
+            self.document, list(self.validator.priority_policy.order)
+        )
         for name, view in self.rendered.items():
             (self.root / name).write_text(view.content)
 

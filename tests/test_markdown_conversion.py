@@ -60,7 +60,7 @@ class MarkdownConversionTest(unittest.TestCase):
 """,
         )
         document = convert_daily_directory(
-            self.day, list(self.validator.priority_order), Ids()
+            self.day, list(self.validator.priority_policy.order), Ids()
         )
         self.assertEqual(self.validator.validate(document), [])
         parent, child = document["tasks"]
@@ -92,7 +92,7 @@ class MarkdownConversionTest(unittest.TestCase):
 """,
         )
         document = convert_daily_directory(
-            self.day, list(self.validator.priority_order), Ids()
+            self.day, list(self.validator.priority_policy.order), Ids()
         )
         self.assertEqual(len(document["tasks"]), 2)
         self.assertNotEqual(document["tasks"][0]["id"], document["tasks"][1]["id"])
@@ -109,12 +109,12 @@ class MarkdownConversionTest(unittest.TestCase):
 """,
         )
         with self.assertRaisesRegex(MarkdownConversionError, "skips a nesting level"):
-            convert_daily_directory(self.day, list(self.validator.priority_order), Ids())
+            convert_daily_directory(self.day, list(self.validator.priority_policy.order), Ids())
 
     def test_rejects_mismatched_date(self) -> None:
         self.write("work.md", "# Work — 2042-01-03\n\n## Must\n")
         with self.assertRaisesRegex(MarkdownConversionError, "does not match"):
-            convert_daily_directory(self.day, list(self.validator.priority_order), Ids())
+            convert_daily_directory(self.day, list(self.validator.priority_policy.order), Ids())
 
     def test_cli_refuses_to_overwrite(self) -> None:
         self.write("work.md", "# Work — 2042-01-02\n\n## Must\n\n- [ ] Task\n")

@@ -9,18 +9,20 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar, cast
 
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "lib"))
 
 from todo_generation import generate_document
+from todo_model import TodoList
 from todo_repository import latest_previous_list
 from todo_validation import CanonicalTodoValidator
 
 
-def previous_document() -> dict[str, object]:
-    return {
+def previous_document() -> TodoList:
+    return cast(TodoList, {
         "date": "2042-01-02",
         "tasks": [
             {
@@ -52,10 +54,12 @@ def previous_document() -> dict[str, object]:
                 "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc"],
             }
         ],
-    }
+    })
 
 
 class CanonicalGenerationTest(unittest.TestCase):
+    validator: ClassVar[CanonicalTodoValidator]
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.validator = CanonicalTodoValidator(ROOT / "schema")

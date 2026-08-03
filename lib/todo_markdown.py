@@ -159,10 +159,10 @@ def parse_category_text(
             f"{path}:1: title date {title.group('date')} does not match {expected_date}"
         )
 
-    category = {"id": path.stem, "display_name": title.group("label")}
+    category: Category = {"id": path.stem, "display_name": title.group("label")}
     tasks: list[ParsedTask] = []
     stack: list[tuple[int, ParsedTask]] = []
-    current_priority: Optional[str] = None
+    current_priority: Optional[Priority] = None
     seen_priorities: set[str] = set()
 
     for line_number, line in enumerate(lines[1:], 2):
