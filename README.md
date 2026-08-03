@@ -12,6 +12,7 @@ bin/todo                       Task CLI and validator
 bin/create-daily-todo          Daily generator entry point
 bin/convert-todos             Markdown-to-canonical-JSON converter
 bin/render-todos              Canonical-JSON-to-Markdown renderer
+bin/sync-todos                Checkbox-only Markdown synchronizer
 bin/todo-config                Configuration helper entry point
 bin/validate-todos             Standalone schema validator
 bin/setup                      Local dependency setup
@@ -101,6 +102,17 @@ Every category member appears in its own priority section. Dependencies are also
 rendered recursively beneath tasks that depend on them, so one canonical task
 may appear more than once. A nested task displays its priority when it differs
 from the surrounding section.
+
+Synchronize checkbox-only edits back into canonical JSON:
+
+```text
+bin/sync-todos todos/2026-08-02/todo.json
+```
+
+Synchronization rerenders the expected view in memory and requires every file,
+line, task name, description, deadline, and indentation character to match.
+Only checkbox markers may differ. Conflicting states across repeated appearances
+are errors, and canonical JSON is updated atomically only after validation.
 
 > **Schema transition:** The schemas now describe the forthcoming canonical JSON
 > model. The current Markdown validator and generator still emit the legacy
