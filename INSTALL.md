@@ -28,6 +28,9 @@ Warnings are reported without causing failure. To promote warnings to errors:
 bin/validate-todos --strict path/to/todo-list.json
 ```
 
+The `todos/` and `backlog/` directories are created by commands as needed and
+are ignored by Git. No user task data is installed or version-controlled.
+
 ## Recreate the environment
 
 Remove `.venv/` and run `bin/setup` again. No global package cleanup is needed.
@@ -48,8 +51,8 @@ updated lock file.
 
 ## Scheduling note
 
-The optional `launchd` workflow should invoke repository commands such as
-`bin/create-daily-todo` and `bin/validate-todos`, rather than a global Python
-executable. These commands can select the repository-local environment and keep
-scheduled behavior consistent with interactive use. Do not install or enable
-the scheduler until canonical generation and validation are fully integrated.
+The optional `launchd` workflow invokes `bin/create-daily-todo`, not a global
+Python executable. Repository commands select the local environment and keep
+scheduled behavior consistent with interactive use. Installing or enabling the
+scheduler remains an explicit manual step because it writes outside the
+repository.

@@ -1,99 +1,59 @@
 # Repository guidance
 
-This repository is a Markdown-first task system. Markdown under `todos/` and
-`backlog/` is authoritative; JSON is only an export and validation model.
+This repository contains software for managing daily TODO lists. User data under
+`todos/` and `backlog/` is local and ignored by Git.
 
-## Before changing tasks
+## Source of truth
 
-- Read `config/task-types.conf`, `config/priorities.conf`, and
-  `config/due-kinds.conf`; never hard-code their values.
-- Use `bin/todo` when practical. Direct Markdown edits are supported.
-- Preserve task IDs in `<!-- task:xxxxxxxxxxxx -->` comments.
-- If a manually added task lacks an ID, run `bin/todo validate --fix`.
-- Do not overwrite an existing daily directory or remove historical tasks.
+- `todos/YYYY-MM-DD/todo.json` is the canonical daily list.
+- Category Markdown files are deterministic, ID-free views generated from JSON.
+- Only checkbox markers may be edited directly in generated Markdown.
+- Run `bin/sync-todos` after checkbox edits. It fails on structural changes or
+  conflicting states across repeated appearances.
+- For structural task changes, edit canonical JSON, validate it, and rerender.
+- Never infer shared task identity from matching names.
 
-## Task syntax
+## Canonical model
 
-```markdown
-- [ ] Short name <!-- task:12-hex-digits -->
-    Optional description.
-    - [ ] Subtask name <!-- task:12-hex-digits -->
-        Optional subtask description.
-```
+- Every task has a unique 12-character hexadecimal ID, completion state, and
+  dependency list.
+- Priority is optional and ordered by `schema/priority.schema.json`.
+- A dependency may have the same or lower priority than the task that depends on
+  it, never a higher priority.
+- A completed task may not have an incomplete dependency.
+- Categories are explicit named collections through category memberships.
+- Category membership and dependency relationships are independent.
+- Ambiguities are validation errors. `--strict` promotes advisory warnings to
+  errors.
 
-Tasks and subtasks share the same recursive structure in the current Markdown
-format. Category comes from the filename. In the canonical JSON model, priority
-is an optional task property using `schema/priority.schema.json`. Categories are
-defined independently using `schema/category.schema.json`, and TODO-list
-category memberships associate them with tasks. Markdown filenames, headings,
-and hierarchy are view concerns rather than schema semantics.
-
-An optional due date is stored in the task comment as `due:YYYY-MM-DD` and must
-also have a configured `due-kind:slug`. An optional local `time:HH:MM` is valid
-only when the date is present. Preserve these fields during edits.
-
-Do not mark a parent complete while it contains an unchecked subtask. The daily
-carry-forward operation copies unchecked tasks, descriptions, and unchecked
-descendants; completed tasks remain only in historical files.
-
-## Generation and scheduling boundary
-
-Daily generation is scheduler-independent. `bin/todo generate` owns creation
-and carry-forward; `bin/create-daily-todo` is only a thin entry point. Schedulers
-may invoke that entry point but must not duplicate generation logic. Codex
-scheduled check-ins read and render existing files; they do not generate them.
-
-## Natural-language requests
-
-For requests such as “add X to Household as Must,” translate the configured
-display names to their slugs and run `bin/todo add`. Resolve a parent by stable
-ID before adding a subtask. If a name matches multiple tasks, ask which one.
-
-Examples:
+## Commands
 
 ```text
-bin/todo add --type household --priority Must "Replace furnace filter"
-bin/todo add --type health --priority Must --due-date 2026-08-03 \
-  --due-time 10:30 --due-kind hard "Submit quarterly report"
-bin/todo add --type someday "Learn woodworking"
-bin/todo add --parent abc123def456 "Buy replacement filter"
-bin/todo complete abc123def456
+bin/validate-todos todos/YYYY-MM-DD/todo.json
+bin/convert-todos todos/YYYY-MM-DD
+bin/render-todos --replace todos/YYYY-MM-DD/todo.json
+bin/sync-todos todos/YYYY-MM-DD/todo.json
+bin/generate-todos --date YYYY-MM-DD
+bin/create-daily-todo --date YYYY-MM-DD
 ```
+
+`bin/generate-todos` owns scheduler-independent canonical creation and
+carry-forward. `bin/create-daily-todo` is the thin render-enabled entry point for
+schedulers. Schedulers must not duplicate generation logic.
+
+The old `bin/todo` implementation remains only as migration reference. Do not
+use its Markdown validator, generator, exporter, or mutation commands with
+canonical data.
 
 ## Verification
 
-The repository is temporarily between storage models. The JSON schemas describe
-canonical task definitions with task-level `priority` and `dependencies`, plus
-separate category definitions and memberships. The current Markdown validator
-and generator still emit recursive `subtasks` and derive category and priority
-from filenames and headings.
-
-`bin/validate-todos` validates canonical JSON documents. `bin/generate-todos`
-owns scheduler-independent canonical creation and carry-forward, while
-`bin/create-daily-todo` is its render-enabled scheduler entry point. Do not run
-the legacy `bin/todo generate`; it still targets Markdown.
-
-Canonical validation commands are:
-
 ```text
-bin/validate-todos path/to/todo-list.json
-bin/validate-todos --strict path/to/todo-list.json
 python3 tests/test_schema_validation.py
 python3 tests/test_markdown_conversion.py
 python3 tests/test_markdown_rendering.py
 python3 tests/test_checkbox_sync.py
 python3 tests/test_canonical_generation.py
-```
-
-Legacy verification commands, to be restored after migration, are:
-
-```text
-bin/todo list --date YYYY-MM-DD
-```
-
-When changing the scheduler template, also run:
-
-```text
+python3 tests/test_generation_independent.py
 plutil -lint launchd/local.daily-todo.plist
 ```
 
