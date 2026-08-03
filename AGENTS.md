@@ -12,6 +12,7 @@ repository history.
 - Synchronization must reject structural edits and conflicting repeated states.
 - Priority and deadline-kind values come from canonical schemas.
 - Category configuration lives in `config/task-types.conf`.
+- Machine-local scheduling configuration lives in ignored `config/schedule.json`.
 
 ## Command boundaries
 
@@ -43,7 +44,6 @@ duplicate their domain logic.
 ```text
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/mypy
-plutil -lint launchd/local.daily-todo.plist.in
 ```
 
 Never install or remove the `launchd` job, modify an external scheduled Codex

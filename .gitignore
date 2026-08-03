@@ -1,6 +1,7 @@
 .logs/
 .venv/
 /backlog/
+/config/schedule.json
 /todos/
 *.tmp
 __pycache__/

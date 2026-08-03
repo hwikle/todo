@@ -89,27 +89,36 @@ become errors under `--strict`.
 
 ## Optional macOS schedule
 
-The scheduler adapter runs at 5:55 AM, computes explicit current- and
-previous-day paths, creates canonical JSON, then renders category views as a
-separate operation. Manage it with:
+Scheduling uses an ignored, machine-local `config/schedule.json`. It records
+the repository and list-storage directories, the local generation time, the
+separate Codex follow-up time, and whether list generation shows a macOS
+notification. Create it with explicit values before installing:
 
 ```text
+todo schedule configure \
+  --lists-dir /absolute/path/to/lists \
+  --generation-time HH:MM \
+  --codex-time HH:MM \
+  --notify
+todo schedule show
 todo schedule install
 todo schedule status
 todo schedule uninstall
 ```
 
-Installation writes and loads
-`~/Library/LaunchAgents/local.daily-todo.plist`. Use `--replace` to replace an
-existing installation. Scheduling is optional; all list and view commands work
-without it.
+The launchd job computes explicit current- and previous-day paths, creates
+canonical JSON, and then renders category views as a separate operation. The
+Codex follow-up time is retained for configuring a separate Codex automation;
+launchd does not consume it. Installation writes and loads
+`~/Library/LaunchAgents/local.daily-todo.plist`. Use `--replace` when replacing
+existing configuration or installation files. Scheduling is optional; all list
+and view commands work without it.
 
 ## Development
 
 ```text
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/mypy
-plutil -lint launchd/local.daily-todo.plist.in
 ```
 
 See `INSTALL.md` for setup details and `AGENTS.md` for repository invariants.

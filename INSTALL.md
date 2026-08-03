@@ -35,10 +35,19 @@ Run development checks with:
 Optional scheduling is installed only by an explicit command:
 
 ```text
+todo schedule configure \
+  --lists-dir /absolute/path/to/lists \
+  --generation-time HH:MM \
+  --codex-time HH:MM \
+  --notify
+todo schedule show
 todo schedule install
 todo schedule status
 ```
 
-This writes and loads `~/Library/LaunchAgents/local.daily-todo.plist`. Remove it
-with `todo schedule uninstall`. The ordinary task, list, view, import, and
-category commands neither inspect nor modify scheduler state.
+The configuration is stored locally in ignored `config/schedule.json`; no time
+or user-specific storage path is embedded in the software. `--no-notify`
+disables the macOS notification. Installation writes and loads
+`~/Library/LaunchAgents/local.daily-todo.plist`. Remove it with
+`todo schedule uninstall`. The ordinary task, list, view, import, and category
+commands neither inspect nor modify scheduler state.

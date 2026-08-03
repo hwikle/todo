@@ -9,10 +9,12 @@ import subprocess
 import sys
 
 from todo_io import write_text_atomic
+from todo_schedule import ScheduleConfigurationError, from_document, load, render_launchd
 
 
 ROOT = Path(__file__).resolve().parent.parent
 LABEL = "local.daily-todo"
+DEFAULT_CONFIG = ROOT / "config" / "schedule.json"
 
 
 def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -23,9 +25,49 @@ def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
     commands = group.add_subparsers(
         dest="schedule_command", required=True, metavar="ACTION", help="schedule operation to perform"
     )
+    configure_command = commands.add_parser(
+        "configure", help="configure scheduling",
+        description="Write an explicit local configuration for launchd and the Codex follow-up.",
+    )
+    configure_command.add_argument(
+        "--config", type=Path, default=DEFAULT_CONFIG, metavar="FILE",
+        help="write configuration to FILE (default: config/schedule.json)",
+    )
+    configure_command.add_argument(
+        "--repository-dir", type=Path, default=ROOT, metavar="DIR",
+        help="absolute repository directory containing bin/todo (default: this repository)",
+    )
+    configure_command.add_argument(
+        "--lists-dir", type=Path, required=True, metavar="DIR",
+        help="absolute directory where dated TODO-list directories are stored",
+    )
+    configure_command.add_argument(
+        "--generation-time", required=True, metavar="HH:MM",
+        help="local 24-hour time when launchd creates and renders the list",
+    )
+    configure_command.add_argument(
+        "--codex-time", required=True, metavar="HH:MM",
+        help="local 24-hour time for the separate Codex follow-up",
+    )
+    notifications = configure_command.add_mutually_exclusive_group(required=True)
+    notifications.add_argument("--notify", action="store_true", help="show a macOS notification after rendering")
+    notifications.add_argument("--no-notify", action="store_true", help="do not show a macOS notification")
+    configure_command.add_argument("--replace", action="store_true", help="replace an existing configuration file")
+    show = commands.add_parser(
+        "show", help="show scheduling configuration",
+        description="Validate and print the local scheduling configuration.",
+    )
+    show.add_argument(
+        "--config", type=Path, default=DEFAULT_CONFIG, metavar="FILE",
+        help="configuration to read (default: config/schedule.json)",
+    )
     install = commands.add_parser(
         "install", help="install and load the schedule",
         description="Install and load the macOS launchd job for automatic daily list creation.",
+    )
+    install.add_argument(
+        "--config", type=Path, default=DEFAULT_CONFIG, metavar="FILE",
+        help="validated configuration to install (default: config/schedule.json)",
     )
     install.add_argument("--replace", action="store_true", help="replace an existing launchd property list")
     commands.add_parser(
@@ -50,6 +92,20 @@ def run(args: argparse.Namespace) -> int:
     destination = _destination()
     service = f"{_domain()}/{LABEL}"
     try:
+        if args.schedule_command == "configure":
+            config = from_document({
+                "repository_directory": str(args.repository_dir),
+                "lists_directory": str(args.lists_dir),
+                "generation_time": args.generation_time,
+                "codex_time": args.codex_time,
+                "notifications": args.notify,
+            })
+            write_text_atomic(args.config.resolve(), config.to_json(), replace=args.replace)
+            print(f"wrote {args.config.resolve()}")
+            return 0
+        if args.schedule_command == "show":
+            print(load(args.config.resolve()).to_json(), end="")
+            return 0
         if args.schedule_command == "status":
             if not destination.exists():
                 print("not installed")
@@ -65,8 +121,8 @@ def run(args: argparse.Namespace) -> int:
             destination.unlink()
             print(f"removed {destination}")
             return 0
-        template = (ROOT / "launchd" / f"{LABEL}.plist.in").read_text()
-        content = template.replace("__TODO_ROOT__", str(ROOT))
+        config = load(args.config.resolve())
+        content = render_launchd(config, LABEL)
         write_text_atomic(destination, content, replace=args.replace)
         check = subprocess.run(["plutil", "-lint", str(destination)], capture_output=True, text=True)
         if check.returncode != 0:
@@ -78,6 +134,6 @@ def run(args: argparse.Namespace) -> int:
             raise OSError(loaded.stderr.strip() or "launchctl bootstrap failed")
         print(f"installed and loaded {destination}")
         return 0
-    except OSError as exc:
+    except (OSError, ScheduleConfigurationError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
