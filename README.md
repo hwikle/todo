@@ -10,6 +10,7 @@ descriptions and recursively nested subtasks.
 backlog/someday.md             Persistent unprioritized ideas
 bin/todo                       Task CLI and validator
 bin/create-daily-todo          Daily generator entry point
+bin/convert-todos             Markdown-to-canonical-JSON converter
 bin/todo-config                Configuration helper entry point
 bin/validate-todos             Standalone schema validator
 bin/setup                      Local dependency setup
@@ -75,6 +76,18 @@ Validate canonical JSON independently of generation or scheduling:
 bin/validate-todos path/to/todo-list.json
 bin/validate-todos --strict path/to/todo-list.json
 ```
+
+Convert one legacy daily Markdown directory without reusing embedded task IDs:
+
+```text
+bin/convert-todos --stdout todos/2026-08-02
+bin/convert-todos todos/2026-08-02
+```
+
+Each Markdown occurrence becomes a distinct canonical task with a fresh ID.
+Four-space nesting becomes dependency references, and nested tasks inherit the
+priority of their Markdown section. Conversion validates the complete document
+and refuses to overwrite an existing `todo.json`.
 
 > **Schema transition:** The schemas now describe the forthcoming canonical JSON
 > model. The current Markdown validator and generator still emit the legacy
