@@ -76,7 +76,7 @@ def main() -> int:
         print("Synchronization stopped because canonical JSON is invalid.", file=sys.stderr)
         return 1
 
-    rendered = render_document(document, list(validator.priority_order))
+    rendered = render_document(document, list(validator.priority_policy.order))
     view_dir = (args.view_dir or input_path.parent).resolve()
     result = synchronize_views(document, rendered, view_dir)
     if print_issues(list(result.issues), args.strict):

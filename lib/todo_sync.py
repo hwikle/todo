@@ -6,8 +6,7 @@ import copy
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
+from todo_model import TodoList
 from todo_render import RenderedMarkdown
 from todo_validation import Issue, validate_completion_observations
 
@@ -17,13 +16,13 @@ CHECKBOX_RE = re.compile(r"^(?P<prefix>\s*- \[)(?P<check>[ xX])(?P<suffix>\] .*)
 
 @dataclass(frozen=True)
 class SyncResult:
-    document: dict[str, Any]
+    document: TodoList
     changed_task_ids: tuple[str, ...]
     issues: tuple[Issue, ...]
 
 
 def synchronize_views(
-    document: dict[str, Any],
+    document: TodoList,
     rendered: dict[str, RenderedMarkdown],
     view_dir: Path,
 ) -> SyncResult:

@@ -52,7 +52,7 @@ def main() -> int:
         validator = CanonicalTodoValidator(ROOT / "schema")
         document = convert_daily_directory(
             args.source,
-            list(validator.priority_order),
+            list(validator.priority_policy.order),
         )
         issues = validator.validate(document)
     except (MarkdownConversionError, ValidationConfigurationError) as exc:

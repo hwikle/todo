@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar
 import datetime as dt
 from dataclasses import dataclass
-from typing import Any
+from todo_model import Priority, Task, TodoList
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ def priority_label(priority: str) -> str:
     return priority.capitalize()
 
 
-def due_metadata(task: dict[str, Any]) -> str:
+def due_metadata(task: Task) -> str:
     due = task["due"]
     values = [
         f"due:{due['year']:04d}",
@@ -40,7 +40,7 @@ def due_metadata(task: dict[str, Any]) -> str:
     return f" <!-- {' '.join(values)} -->"
 
 
-def due_display(task: dict[str, Any]) -> str:
+def due_display(task: Task) -> str:
     due = task["due"]
     if "day" in due:
         value = f"{calendar.month_name[due['month']]} {due['day']}, {due['year']}"
@@ -56,7 +56,7 @@ def due_display(task: dict[str, Any]) -> str:
 
 
 def render_document(
-    document: dict[str, Any], priority_order: list[str]
+    document: TodoList, priority_order: list[Priority]
 ) -> dict[str, RenderedMarkdown]:
     tasks = {task["id"]: task for task in document["tasks"]}
     memberships = {
@@ -103,8 +103,8 @@ def combine_rendered(rendered: dict[str, RenderedMarkdown]) -> str:
 
 
 def _render_task(
-    task: dict[str, Any],
-    tasks: dict[str, dict[str, Any]],
+    task: Task,
+    tasks: dict[str, Task],
     lines: list[str],
     occurrences: list[RenderedOccurrence],
     depth: int,

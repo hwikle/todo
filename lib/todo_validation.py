@@ -12,6 +12,8 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError
 from referencing import Registry, Resource
 
+from todo_priority import PriorityConfigurationError, priority_policy_from_schema
+
 
 @dataclass(frozen=True)
 class Issue:
@@ -41,7 +43,13 @@ class CanonicalTodoValidator:
         self.schema_dir = schema_dir.resolve()
         self.schemas = self._load_schemas()
         self._validate_local_references()
-        self.priority_order = self._load_priority_order()
+        try:
+            self.priority_policy = priority_policy_from_schema(
+                self.schemas["priority.schema.json"]
+            )
+        except PriorityConfigurationError as exc:
+            raise ValidationConfigurationError(str(exc)) from exc
+        self.priority_order = self.priority_policy.ranks
         resources = [
             (schema["$id"], Resource.from_contents(schema))
             for schema in self.schemas.values()
@@ -113,20 +121,6 @@ class CanonicalTodoValidator:
                     stack.extend(value.values())
                 elif isinstance(value, list):
                     stack.extend(value)
-
-    def _load_priority_order(self) -> dict[str, int]:
-        schema = self.schemas["priority.schema.json"]
-        values = schema.get("enum")
-        ordered = schema.get("x-order")
-        if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
-            raise ValidationConfigurationError("priority.schema.json: enum must contain strings")
-        if not isinstance(ordered, list) or not all(isinstance(item, str) for item in ordered):
-            raise ValidationConfigurationError("priority.schema.json: x-order must contain strings")
-        if len(ordered) != len(set(ordered)) or set(ordered) != set(values):
-            raise ValidationConfigurationError(
-                "priority.schema.json: x-order must contain each enum value exactly once"
-            )
-        return {name: rank for rank, name in enumerate(ordered)}
 
     def validate(self, document: Any) -> list[Issue]:
         issues = [

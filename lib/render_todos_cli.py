@@ -62,7 +62,7 @@ def main() -> int:
         print("Rendering failed validation; no files were written.", file=sys.stderr)
         return 1
 
-    rendered = render_document(document, list(validator.priority_order))
+    rendered = render_document(document, list(validator.priority_policy.order))
     if args.stdout:
         print(combine_rendered(rendered), end="")
         return 0

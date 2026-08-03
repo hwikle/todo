@@ -105,7 +105,7 @@ def main() -> int:
     try:
         write_atomic(target, json.dumps(document, indent=2, ensure_ascii=False) + "\n")
         if args.render:
-            rendered = render_document(document, list(validator.priority_order))
+            rendered = render_document(document, list(validator.priority_policy.order))
             for name, view in rendered.items():
                 write_atomic(target.parent / name, view.content)
     except OSError as exc:

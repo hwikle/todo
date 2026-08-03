@@ -7,7 +7,17 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Callable, Optional, cast
+
+from todo_model import (
+    Category,
+    CategoryMembership,
+    DeadlineKind,
+    DueDate,
+    Priority,
+    Task,
+    TodoList,
+)
 
 
 TITLE_RE = re.compile(r"^# (?P<label>.+?) — (?P<date>\d{4}-\d{2}-\d{2})$")
@@ -27,15 +37,15 @@ class ParsedTask:
     task_id: str
     name: str
     completed: bool
-    priority: str
+    priority: Priority
     source: str
     description: list[str] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
-    due: Optional[dict[str, Any]] = None
-    deadline_kind: Optional[str] = None
+    due: Optional[DueDate] = None
+    deadline_kind: Optional[DeadlineKind] = None
 
-    def canonical(self) -> dict[str, Any]:
-        result: dict[str, Any] = {
+    def canonical(self) -> Task:
+        result: Task = {
             "id": self.task_id,
             "name": self.name,
             "priority": self.priority,
@@ -46,7 +56,8 @@ class ParsedTask:
             result["description"] = "\n".join(self.description)
         if self.due is not None:
             result["due"] = self.due
-            result["deadline_kind"] = self.deadline_kind
+            if self.deadline_kind is not None:
+                result["deadline_kind"] = self.deadline_kind
         return result
 
 
@@ -85,9 +96,9 @@ def parse_metadata(value: str, source: Path, line_number: int) -> dict[str, str]
     return metadata
 
 
-def canonical_due(metadata: dict[str, str], source: Path, line_number: int) -> tuple[
-    Optional[dict[str, Any]], Optional[str]
-]:
+def canonical_due(
+    metadata: dict[str, str], source: Path, line_number: int
+) -> tuple[Optional[DueDate], Optional[DeadlineKind]]:
     due_value = metadata.get("due")
     due_time = metadata.get("time")
     deadline_kind = metadata.get("due-kind")
@@ -97,6 +108,10 @@ def canonical_due(metadata: dict[str, str], source: Path, line_number: int) -> t
         raise MarkdownConversionError(f"{source}:{line_number}: deadline kind requires a due date")
     if due_value and not deadline_kind:
         raise MarkdownConversionError(f"{source}:{line_number}: due date requires a deadline kind")
+    if deadline_kind not in {None, "hard", "soft"}:
+        raise MarkdownConversionError(
+            f"{source}:{line_number}: unknown deadline kind {deadline_kind!r}"
+        )
     if not due_value:
         return None, None
     try:
@@ -105,7 +120,7 @@ def canonical_due(metadata: dict[str, str], source: Path, line_number: int) -> t
         raise MarkdownConversionError(
             f"{source}:{line_number}: invalid due date {due_value!r}"
         ) from exc
-    due: dict[str, Any] = {
+    due: DueDate = {
         "year": parsed.year,
         "month": parsed.month,
         "day": parsed.day,
@@ -122,15 +137,15 @@ def canonical_due(metadata: dict[str, str], source: Path, line_number: int) -> t
                 f"{source}:{line_number}: due time must use HH:MM"
             )
         due["time"] = due_time
-    return due, deadline_kind
+    return due, cast(Optional[DeadlineKind], deadline_kind)
 
 
 def parse_category_file(
     path: Path,
     expected_date: str,
-    priorities: dict[str, str],
+    priorities: dict[str, Priority],
     ids: FreshIdSource,
-) -> tuple[dict[str, str], list[ParsedTask]]:
+) -> tuple[Category, list[ParsedTask]]:
     try:
         lines = path.read_text().splitlines()
     except OSError as exc:
@@ -233,9 +248,9 @@ def parse_category_file(
 
 def convert_daily_directory(
     source: Path,
-    priority_values: list[str],
+    priority_values: list[Priority],
     id_generator: Optional[Callable[[], str]] = None,
-) -> dict[str, Any]:
+) -> TodoList:
     source = source.resolve()
     try:
         date = dt.date.fromisoformat(source.name).isoformat()
@@ -250,9 +265,9 @@ def convert_daily_directory(
         raise MarkdownConversionError(f"{source}: no category Markdown files found")
     priorities = {value.casefold(): value for value in priority_values}
     ids = FreshIdSource(id_generator)
-    categories: list[dict[str, str]] = []
-    canonical_tasks: list[dict[str, Any]] = []
-    memberships: list[dict[str, Any]] = []
+    categories: list[Category] = []
+    canonical_tasks: list[Task] = []
+    memberships: list[CategoryMembership] = []
     for path in files:
         category, tasks = parse_category_file(path, date, priorities, ids)
         categories.append(category)

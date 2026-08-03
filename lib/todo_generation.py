@@ -6,15 +6,17 @@ import copy
 import datetime as dt
 import re
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Iterable, Optional
+
+from todo_model import Category, CategoryMembership, Task, TodoList
 
 
 class GenerationError(Exception):
     """Canonical daily generation cannot proceed safely."""
 
 
-def configured_daily_categories(path: Path) -> list[dict[str, str]]:
-    categories: list[dict[str, str]] = []
+def configured_daily_categories(path: Path) -> list[Category]:
+    categories: list[Category] = []
     seen: set[str] = set()
     try:
         lines = path.read_text().splitlines()
@@ -61,9 +63,9 @@ def latest_previous_list(data_dir: Path, target_date: str) -> Optional[Path]:
 
 def generate_document(
     target_date: str,
-    previous: Optional[dict[str, Any]],
-    configured_categories: Iterable[dict[str, str]],
-) -> dict[str, Any]:
+    previous: Optional[TodoList],
+    configured_categories: Iterable[Category],
+) -> TodoList:
     try:
         target_date = dt.date.fromisoformat(target_date).isoformat()
     except ValueError as exc:
@@ -83,7 +85,7 @@ def generate_document(
     retained_ids = {
         task["id"] for task in previous["tasks"] if not task["completed"]
     }
-    tasks: list[dict[str, Any]] = []
+    tasks: list[Task] = []
     for task in previous["tasks"]:
         if task["id"] not in retained_ids:
             continue
@@ -111,7 +113,7 @@ def generate_document(
         for task_id in membership["tasks"]:
             if task_id in retained_ids and task_id not in current:
                 current.append(task_id)
-    memberships = [
+    memberships: list[CategoryMembership] = [
         {"category": category["id"], "tasks": memberships_by_category[category["id"]]}
         for category in categories
     ]
