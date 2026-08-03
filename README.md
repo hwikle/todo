@@ -9,6 +9,8 @@ The repository contains software only; personal data under `todos/` and
 
 ```text
 bin/convert-todos              Legacy Markdown-to-JSON migration
+bin/migrate-task-ids           One-time canonical UUIDv4 migration
+bin/add-todo                   Incremental canonical task creation
 bin/render-todos               ID-free Markdown rendering
 bin/sync-todos                 Checkbox-only view synchronization
 bin/validate-todos             Canonical schema and semantic validation
@@ -38,6 +40,27 @@ paths are supported where a command writes data; existing alternate outputs are
 not overwritten unless `--replace` is explicitly available and supplied.
 
 ## Canonical workflow
+
+Add a task to `todo.json` in the current directory:
+
+```text
+bin/add-todo "Draft proposal" --category work --priority should
+```
+
+Select another canonical file and add optional details or dependencies:
+
+```text
+bin/add-todo "Review proposal" --output /path/to/todo.json \
+  --category work --description "Review the first complete draft." \
+  --depends-on "Draft proposal"
+```
+
+At least one explicit category is required. Existing-task selectors match an
+ID first, then an exact unique name; missing or ambiguous matches fail without
+changing JSON. Valid priority choices come from `schema/priority.schema.json`.
+The command assumes the existing document is valid, checks only the new task
+and affected relationships, and atomically updates canonical JSON. It never
+reads or writes rendered Markdown; rerender explicitly when desired.
 
 Validate a daily list:
 
@@ -136,6 +159,16 @@ ID, four-space nesting becomes dependencies, every category assignment is
 explicit, and identical names remain distinct. Output defaults to
 `<source>/todo.json`; `--output` selects another path, `--stdout` writes
 nothing, and existing output is never replaced.
+
+Canonical files created with the former shortened task IDs can be migrated in
+place to UUIDv4 IDs and references:
+
+```text
+bin/migrate-task-ids /path/to/todo.json
+```
+
+The migration validates the rewritten canonical document before replacing the
+original file atomically.
 
 ## Validation policy
 

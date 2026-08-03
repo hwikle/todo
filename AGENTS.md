@@ -10,7 +10,8 @@ This repository contains software for managing daily TODO lists. User data under
 - Only checkbox markers may be edited directly in generated Markdown.
 - Run `bin/sync-todos` after checkbox edits. It fails on structural changes or
   conflicting states across repeated appearances.
-- For structural task changes, edit canonical JSON, validate it, and rerender.
+- Use `bin/add-todo` for task creation. For unsupported structural changes,
+  edit canonical JSON, validate it, and rerender.
 - Never infer shared task identity from matching names.
 
 ## Canonical model
@@ -30,7 +31,9 @@ This repository contains software for managing daily TODO lists. User data under
 
 ```text
 bin/validate-todos todos/YYYY-MM-DD/todo.json
+bin/add-todo "Task name" --output todos/YYYY-MM-DD/todo.json --category work
 bin/convert-todos todos/YYYY-MM-DD
+bin/migrate-task-ids todos/YYYY-MM-DD/todo.json
 bin/render-todos --replace todos/YYYY-MM-DD/todo.json
 bin/sync-todos todos/YYYY-MM-DD/todo.json
 bin/generate-todos --date YYYY-MM-DD
@@ -62,6 +65,8 @@ Priority and deadline-kind values come from canonical schemas.
 .venv/bin/python tests/test_canonical_generation.py
 .venv/bin/python tests/test_generation_independent.py
 .venv/bin/python tests/test_category_config.py
+.venv/bin/python tests/test_task_ids.py
+.venv/bin/python tests/test_add_todo.py
 .venv/bin/python tests/test_repository_privacy.py
 .venv/bin/mypy
 plutil -lint launchd/local.daily-todo.plist.in
