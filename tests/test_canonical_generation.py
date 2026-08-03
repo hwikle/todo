@@ -14,7 +14,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "lib"))
 
-from todo_generation import generate_document, latest_previous_list
+from todo_generation import generate_document
+from todo_repository import latest_previous_list
 from todo_validation import CanonicalTodoValidator
 
 

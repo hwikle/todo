@@ -5,7 +5,8 @@ from __future__ import annotations
 import copy
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from collections.abc import Mapping
+
 from todo_model import TodoList
 from todo_render import RenderedMarkdown
 from todo_validation import Issue, validate_completion_observations
@@ -24,32 +25,32 @@ class SyncResult:
 def synchronize_views(
     document: TodoList,
     rendered: dict[str, RenderedMarkdown],
-    view_dir: Path,
+    views: Mapping[str, str],
+    location_prefix: str = "",
 ) -> SyncResult:
     issues: list[Issue] = []
     expected_names = set(rendered)
-    actual_names = {path.name for path in view_dir.glob("*.md")}
+    actual_names = set(views)
+    def location(name: str) -> str:
+        return f"{location_prefix}/{name}" if location_prefix else name
+
     for missing in sorted(expected_names - actual_names):
-        issues.append(Issue("error", str(view_dir / missing), "rendered category file is missing"))
+        issues.append(Issue("error", location(missing), "rendered category file is missing"))
     for extra in sorted(actual_names - expected_names):
-        issues.append(Issue("error", str(view_dir / extra), "unexpected Markdown file"))
+        issues.append(Issue("error", location(extra), "unexpected Markdown file"))
     if issues:
         return SyncResult(document, (), tuple(issues))
 
     observations: list[tuple[str, bool, str]] = []
     for name, expected in rendered.items():
-        path = view_dir / name
-        try:
-            actual_lines = path.read_text().splitlines()
-        except OSError as exc:
-            issues.append(Issue("error", str(path), f"cannot read rendered view: {exc}"))
-            continue
+        source = location(name)
+        actual_lines = views[name].splitlines()
         expected_lines = expected.content.splitlines()
         if len(actual_lines) != len(expected_lines):
             issues.append(
                 Issue(
                     "error",
-                    str(path),
+                    source,
                     f"structure differs: expected {len(expected_lines)} lines, got {len(actual_lines)}",
                 )
             )
@@ -64,7 +65,7 @@ def synchronize_views(
                     issues.append(
                         Issue(
                             "error",
-                            f"{path}:{line_number}",
+                            f"{source}:{line_number}",
                             "non-checkbox content differs from the canonical render",
                         )
                     )
@@ -75,7 +76,7 @@ def synchronize_views(
                 issues.append(
                     Issue(
                         "error",
-                        f"{path}:{line_number}",
+                        f"{source}:{line_number}",
                         "task line no longer has the canonical checkbox structure",
                     )
                 )
@@ -87,7 +88,7 @@ def synchronize_views(
                 issues.append(
                     Issue(
                         "error",
-                        f"{path}:{line_number}",
+                        f"{source}:{line_number}",
                         "task content differs from the canonical render",
                     )
                 )
@@ -96,7 +97,7 @@ def synchronize_views(
                 (
                     occurrence.task_id,
                     actual_match.group("check").lower() == "x",
-                    f"{path}:{line_number}",
+                    f"{source}:{line_number}",
                 )
             )
     issues.extend(validate_completion_observations(observations))

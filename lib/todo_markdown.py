@@ -11,12 +11,10 @@ from typing import Callable, Optional, cast
 
 from todo_model import (
     Category,
-    CategoryMembership,
     DeadlineKind,
     DueDate,
     Priority,
     Task,
-    TodoList,
 )
 
 
@@ -140,16 +138,15 @@ def canonical_due(
     return due, cast(Optional[DeadlineKind], deadline_kind)
 
 
-def parse_category_file(
-    path: Path,
+def parse_category_text(
+    content: str,
+    source: Path,
     expected_date: str,
     priorities: dict[str, Priority],
     ids: FreshIdSource,
 ) -> tuple[Category, list[ParsedTask]]:
-    try:
-        lines = path.read_text().splitlines()
-    except OSError as exc:
-        raise MarkdownConversionError(f"cannot read {path}: {exc}") from exc
+    path = source
+    lines = content.splitlines()
     if not lines:
         raise MarkdownConversionError(f"{path}:1: missing category title")
     title = TITLE_RE.fullmatch(lines[0])
@@ -244,39 +241,3 @@ def parse_category_file(
             continue
         stack[-1][1].description.append(stripped)
     return category, tasks
-
-
-def convert_daily_directory(
-    source: Path,
-    priority_values: list[Priority],
-    id_generator: Optional[Callable[[], str]] = None,
-) -> TodoList:
-    source = source.resolve()
-    try:
-        date = dt.date.fromisoformat(source.name).isoformat()
-    except ValueError as exc:
-        raise MarkdownConversionError(
-            f"{source}: directory name must be an ISO date"
-        ) from exc
-    if not source.is_dir():
-        raise MarkdownConversionError(f"{source}: source must be a directory")
-    files = sorted(source.glob("*.md"))
-    if not files:
-        raise MarkdownConversionError(f"{source}: no category Markdown files found")
-    priorities = {value.casefold(): value for value in priority_values}
-    ids = FreshIdSource(id_generator)
-    categories: list[Category] = []
-    canonical_tasks: list[Task] = []
-    memberships: list[CategoryMembership] = []
-    for path in files:
-        category, tasks = parse_category_file(path, date, priorities, ids)
-        categories.append(category)
-        task_ids = [task.task_id for task in tasks]
-        canonical_tasks.extend(task.canonical() for task in tasks)
-        memberships.append({"category": category["id"], "tasks": task_ids})
-    return {
-        "date": date,
-        "tasks": canonical_tasks,
-        "categories": categories,
-        "category_memberships": memberships,
-    }

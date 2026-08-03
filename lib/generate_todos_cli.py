@@ -11,13 +11,12 @@ from pathlib import Path
 
 from todo_generation import (
     GenerationError,
-    configured_daily_categories,
     generate_document,
-    latest_previous_list,
 )
 from todo_cli import print_issues
 from todo_io import load_json, write_text_atomic
 from todo_render import render_document
+from todo_repository import RepositoryError, configured_daily_categories, latest_previous_list
 from todo_validation import CanonicalTodoValidator, ValidationConfigurationError
 
 
@@ -54,7 +53,13 @@ def main() -> int:
             data_dir, target_date
         )
         previous = load_json(previous_path) if previous_path else None
-    except (OSError, json.JSONDecodeError, GenerationError, ValidationConfigurationError) as exc:
+    except (
+        OSError,
+        json.JSONDecodeError,
+        GenerationError,
+        RepositoryError,
+        ValidationConfigurationError,
+    ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     if previous is not None:

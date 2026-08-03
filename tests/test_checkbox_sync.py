@@ -58,11 +58,14 @@ class CheckboxSyncTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def views(self) -> dict[str, str]:
+        return {path.name: path.read_text() for path in self.root.glob("*.md")}
+
     def test_synchronizes_consistent_repeated_checkboxes(self) -> None:
         path = self.root / "work.md"
         content = path.read_text().replace("[ ] Repeated dependency", "[x] Repeated dependency")
         path.write_text(content)
-        result = synchronize_views(self.document, self.rendered, self.root)
+        result = synchronize_views(self.document, self.rendered, self.views(), str(self.root))
         self.assertEqual(result.issues, ())
         self.assertEqual(result.changed_task_ids, ("bbbbbbbbbbbb",))
         self.assertTrue(result.document["tasks"][1]["completed"])
@@ -74,14 +77,14 @@ class CheckboxSyncTest(unittest.TestCase):
             "    - [x] Repeated dependency — Should",
         )
         path.write_text(content)
-        result = synchronize_views(self.document, self.rendered, self.root)
+        result = synchronize_views(self.document, self.rendered, self.views(), str(self.root))
         self.assertTrue(any("conflicts" in issue.message for issue in result.issues))
         self.assertEqual(result.changed_task_ids, ())
 
     def test_structural_edits_fail(self) -> None:
         path = self.root / "work.md"
         path.write_text(path.read_text().replace("Repeated dependency", "Renamed", 1))
-        result = synchronize_views(self.document, self.rendered, self.root)
+        result = synchronize_views(self.document, self.rendered, self.views(), str(self.root))
         self.assertTrue(any("differs" in issue.message for issue in result.issues))
 
     def test_invalid_completion_transition_does_not_write(self) -> None:

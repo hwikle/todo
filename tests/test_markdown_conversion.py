@@ -14,7 +14,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "lib"))
 
-from todo_markdown import MarkdownConversionError, convert_daily_directory
+from todo_markdown import MarkdownConversionError
+from todo_markdown_io import convert_daily_directory
 from todo_validation import CanonicalTodoValidator
 
 

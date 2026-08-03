@@ -10,7 +10,8 @@ from pathlib import Path
 
 from todo_cli import print_issues
 from todo_io import write_text_atomic
-from todo_markdown import MarkdownConversionError, convert_daily_directory
+from todo_markdown import MarkdownConversionError
+from todo_markdown_io import convert_daily_directory
 from todo_validation import CanonicalTodoValidator, ValidationConfigurationError
 
 

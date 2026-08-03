@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from todo_cli import print_issues
-from todo_io import load_json, write_text_atomic
+from todo_io import load_json, load_markdown_directory, write_text_atomic
 from todo_render import render_document
 from todo_sync import synchronize_views
 from todo_validation import CanonicalTodoValidator, ValidationConfigurationError
@@ -53,7 +53,12 @@ def main() -> int:
 
     rendered = render_document(document, list(validator.priority_policy.order))
     view_dir = (args.view_dir or input_path.parent).resolve()
-    result = synchronize_views(document, rendered, view_dir)
+    try:
+        views = load_markdown_directory(view_dir)
+    except OSError as exc:
+        print(f"error: cannot read rendered Markdown: {exc}", file=sys.stderr)
+        return 2
+    result = synchronize_views(document, rendered, views, str(view_dir))
     if print_issues(list(result.issues), args.strict):
         print("Synchronization failed; canonical JSON was not changed.", file=sys.stderr)
         return 1
