@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import re
 import sys
 import uuid
@@ -805,6 +806,22 @@ def parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = parser().parse_args()
+    legacy_commands = {
+        "generate",
+        "add",
+        "list",
+        "complete",
+        "reopen",
+        "validate",
+        "export",
+    }
+    if args.command in legacy_commands and os.environ.get("TODO_ENABLE_LEGACY") != "1":
+        print(
+            "error: legacy Markdown task commands are disabled; use the canonical "
+            "convert, validate, render, sync, and generate commands",
+            file=sys.stderr,
+        )
+        return 2
     try:
         if args.command == "generate":
             generate(args.date)

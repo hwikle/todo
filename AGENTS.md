@@ -43,7 +43,7 @@ schedulers. Schedulers must not duplicate generation logic.
 
 The old `bin/todo` implementation remains only as migration reference. Do not
 use its Markdown validator, generator, exporter, or mutation commands with
-canonical data.
+canonical data. Those commands are guarded against accidental execution.
 
 ## Verification
 
@@ -54,6 +54,7 @@ python3 tests/test_markdown_rendering.py
 python3 tests/test_checkbox_sync.py
 python3 tests/test_canonical_generation.py
 python3 tests/test_generation_independent.py
+python3 tests/test_legacy_guard.py
 plutil -lint launchd/local.daily-todo.plist
 ```
 

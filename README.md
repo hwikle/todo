@@ -145,5 +145,6 @@ category and priority. Do not expose task IDs and do not run generation.
 
 `bin/todo` retains the earlier Markdown-first generator and mutation code as a
 migration reference. It is incompatible with canonical data and must not be
-used for current lists. Remove it only after canonical parity is considered
-complete.
+used for current lists, and its data commands are guarded against accidental
+execution. Configuration inspection remains available. Remove the legacy code
+only after canonical parity is considered complete.
