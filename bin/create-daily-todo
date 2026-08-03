@@ -2,5 +2,4 @@
 set -eu
 
 SCRIPT_DIR=${0:A:h}
-exec "$SCRIPT_DIR/todo" generate "$@"
-
+exec "$SCRIPT_DIR/generate-todos" --render "$@"

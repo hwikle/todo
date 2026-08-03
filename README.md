@@ -10,6 +10,7 @@ descriptions and recursively nested subtasks.
 backlog/someday.md             Persistent unprioritized ideas
 bin/todo                       Task CLI and validator
 bin/create-daily-todo          Daily generator entry point
+bin/generate-todos             Scheduler-independent canonical generator
 bin/convert-todos             Markdown-to-canonical-JSON converter
 bin/render-todos              Canonical-JSON-to-Markdown renderer
 bin/sync-todos                Checkbox-only Markdown synchronizer
@@ -47,10 +48,11 @@ The first command uses the current local date. The second supports testing,
 backfilling, or use by another automation system. Neither command checks for or
 depends on `launchd`, Codex, or any scheduler state.
 
-`bin/create-daily-todo` is a thin entry point for `bin/todo generate`. Scheduler
-configurations only decide when to invoke it; all creation and carry-forward
-behavior remains in the generator. The 6:00 AM Codex check-in is intentionally
-read-only with respect to generation.
+`bin/generate-todos` owns canonical creation and carry-forward without reading
+any scheduler state. `bin/create-daily-todo` is a thin entry point that requests
+both canonical generation and Markdown rendering. Scheduler configurations only
+decide when to invoke that entry point. The 6:00 AM Codex check-in is
+intentionally read-only with respect to generation.
 
 ## Markdown format
 
@@ -173,15 +175,15 @@ reference a configured due kind. Times are interpreted in the Mac's local time.
 
 ## Carry-forward rules
 
-- Existing files for today are never overwritten by generation.
-- Newly configured daily categories gain a file without changing existing files.
-- The previous day is schema-validated before a new directory is created.
-- Generated files are schema-validated again after they are written.
-- Unchecked tasks carry into the same category and priority.
-- Descriptions and unchecked subtasks carry with their parent.
-- Completed tasks and completed subtasks remain in historical files.
-- A completed parent with an unchecked descendant fails validation.
-- A removed category or priority is preserved while it still has unchecked work.
+- Existing canonical lists are never overwritten by generation.
+- The latest prior canonical list is schema- and semantics-validated first.
+- Incomplete tasks retain IDs, metadata, priority, category memberships, and
+  still-relevant dependency references.
+- Completed tasks remain historical and do not carry forward.
+- Newly configured daily categories are added without dropping prior category
+  definitions.
+- The complete generated document is validated before being written atomically.
+- Rendering is optional and does not contain generation logic.
 
 Run the scheduler-independence regression test with:
 
