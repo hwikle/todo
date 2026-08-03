@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 from pathlib import Path
 import re
 from typing import Optional
@@ -14,8 +15,15 @@ class RepositoryError(Exception):
     """Local TODO repository state cannot be read safely."""
 
 
-def configured_daily_categories(path: Path) -> list[Category]:
-    categories: list[Category] = []
+@dataclass(frozen=True)
+class CategoryDefinition:
+    id: str
+    display_name: str
+    behavior: str
+
+
+def category_definitions(path: Path) -> list[CategoryDefinition]:
+    definitions: list[CategoryDefinition] = []
     seen: set[str] = set()
     try:
         lines = path.read_text().splitlines()
@@ -38,9 +46,16 @@ def configured_daily_categories(path: Path) -> list[Category]:
         if behavior not in {"daily", "backlog"}:
             raise RepositoryError(f"{path}:{line_number}: invalid behavior {behavior!r}")
         seen.add(category_id)
-        if behavior == "daily":
-            categories.append({"id": category_id, "display_name": display_name})
-    return categories
+        definitions.append(CategoryDefinition(category_id, display_name, behavior))
+    return definitions
+
+
+def configured_daily_categories(path: Path) -> list[Category]:
+    return [
+        {"id": item.id, "display_name": item.display_name}
+        for item in category_definitions(path)
+        if item.behavior == "daily"
+    ]
 
 
 def latest_previous_list(data_dir: Path, target_date: str) -> Optional[Path]:

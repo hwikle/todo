@@ -49,14 +49,8 @@ promotes warnings for conversion, validation, rendering, synchronization, and
 generation.
 
 Canonical generation reads daily category definitions from
-`config/task-types.conf`. The legacy priority and due-kind configuration files
-do not define canonical schema values.
-
-The old `bin/todo` implementation remains only as migration reference. Do not
-use its Markdown validator, generator, exporter, or mutation commands with
-canonical data. Those commands are guarded against accidental execution.
-`bin/todo-config add-type` remains usable for canonical daily categories; its
-priority and due-kind operations affect only the legacy implementation.
+`config/task-types.conf`. Use `bin/todo-config` to inspect or add definitions.
+Priority and deadline-kind values come from canonical schemas.
 
 ## Verification
 
@@ -67,7 +61,7 @@ python3 tests/test_markdown_rendering.py
 python3 tests/test_checkbox_sync.py
 python3 tests/test_canonical_generation.py
 python3 tests/test_generation_independent.py
-python3 tests/test_legacy_guard.py
+python3 tests/test_category_config.py
 python3 tests/test_repository_privacy.py
 plutil -lint launchd/local.daily-todo.plist.in
 ```

@@ -160,8 +160,9 @@ Add a category without changing code with:
 bin/todo-config add-type travel "Travel"
 ```
 
-The legacy priority and due-kind configuration commands do not change the
-canonical `must`/`should`/`could` and `hard`/`soft` schema values.
+List configured categories with `bin/todo-config list-types`. Priority and
+deadline-kind values are defined by their canonical schemas rather than mutable
+configuration files.
 
 ## Optional launchd schedule
 
@@ -196,11 +197,3 @@ If it is missing or invalid, report the problem and stop. Otherwise read the
 generated category Markdown files and post one concise checklist grouped by
 category and priority. Do not expose task IDs and do not run generation.
 ```
-
-## Legacy implementation
-
-`bin/todo` retains the earlier Markdown-first generator and mutation code as a
-migration reference. It is incompatible with canonical data and must not be
-used for current lists, and its data commands are guarded against accidental
-execution. Configuration inspection remains available. Remove the legacy code
-only after canonical parity is considered complete.

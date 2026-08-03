@@ -1,6 +1,12 @@
 #!/bin/zsh
 set -eu
 
-SCRIPT_DIR=${0:A:h}
-exec "$SCRIPT_DIR/todo" config "$@"
+ROOT=${0:A:h:h}
+PYTHON="$ROOT/.venv/bin/python"
 
+if [[ ! -x "$PYTHON" ]]; then
+    print -u2 "Daily TODO dependencies are not installed. Run: $ROOT/bin/setup"
+    exit 2
+fi
+
+exec "$PYTHON" "$ROOT/lib/todo_config_cli.py" "$@"
