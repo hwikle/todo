@@ -17,18 +17,34 @@ SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 
 def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    group = subparsers.add_parser("category", help="manage category configuration")
-    commands = group.add_subparsers(dest="category_command", required=True)
-    commands.add_parser("list")
-    add = commands.add_parser("add")
-    add.add_argument("id")
-    add.add_argument("name")
-    add.add_argument("--behavior", choices=["daily", "backlog"], default="daily")
-    rename = commands.add_parser("rename")
-    rename.add_argument("id")
-    rename.add_argument("name")
-    remove = commands.add_parser("remove")
-    remove.add_argument("id")
+    group = subparsers.add_parser(
+        "category", help="manage available categories",
+        description="Manage category definitions used when creating future TODO lists.",
+    )
+    commands = group.add_subparsers(
+        dest="category_command", required=True, metavar="ACTION", help="category operation to perform"
+    )
+    commands.add_parser(
+        "list", help="list categories", description="List category IDs, display names, and behaviors."
+    )
+    add = commands.add_parser(
+        "add", help="add a category", description="Add a category definition for future TODO lists."
+    )
+    add.add_argument("id", metavar="ID", help="lowercase category ID, using hyphens between words")
+    add.add_argument("name", metavar="NAME", help="human-readable category name")
+    add.add_argument(
+        "--behavior", choices=["daily", "backlog"], default="daily",
+        help="include the category in daily lists or keep it as backlog (default: daily)",
+    )
+    rename = commands.add_parser(
+        "rename", help="rename a category", description="Change a category's display name for future lists."
+    )
+    rename.add_argument("id", metavar="ID", help="category ID to rename")
+    rename.add_argument("name", metavar="NAME", help="new human-readable category name")
+    remove = commands.add_parser(
+        "remove", help="remove a category", description="Remove a category definition from future lists."
+    )
+    remove.add_argument("id", metavar="ID", help="category ID to remove")
 
 
 def _serialize(items: list[CategoryDefinition]) -> str:

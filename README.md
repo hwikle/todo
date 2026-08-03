@@ -11,6 +11,11 @@ prints to standard output by default. Pass `--output PATH` to persist a result;
 an existing destination requires `--replace`. Commands never discover list
 storage implicitly.
 
+Run `todo --help` or `todo COMMAND --help` to explore the interface. If a
+command is incomplete or an argument is invalid, `todo` prints the relevant
+command help together with the error so the invocation can be corrected in
+place.
+
 ## Commands
 
 Create or inspect tasks:

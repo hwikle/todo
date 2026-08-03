@@ -16,13 +16,24 @@ from todo_validation import CanonicalTodoValidator
 
 
 def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    group = subparsers.add_parser("import", help="import external task formats")
-    formats = group.add_subparsers(dest="import_format", required=True)
-    markdown = formats.add_parser("markdown")
-    markdown.add_argument("source", type=Path)
-    markdown.add_argument("--output", type=Path)
-    markdown.add_argument("--replace", action="store_true")
-    markdown.add_argument("--strict", action="store_true")
+    group = subparsers.add_parser(
+        "import", help="import an existing TODO list",
+        description="Convert a supported external representation into canonical JSON.",
+    )
+    formats = group.add_subparsers(
+        dest="import_format", required=True, metavar="FORMAT", help="source format to import"
+    )
+    markdown = formats.add_parser(
+        "markdown", help="import category Markdown files",
+        description="Convert a dated directory of category Markdown files into canonical JSON.",
+    )
+    markdown.add_argument("source", type=Path, metavar="DIR", help="dated directory containing category Markdown files")
+    markdown.add_argument(
+        "--output", type=Path, metavar="FILE",
+        help="write JSON to FILE instead of standard output",
+    )
+    markdown.add_argument("--replace", action="store_true", help="allow --output to replace an existing file")
+    markdown.add_argument("--strict", action="store_true", help="treat validation warnings as errors")
 
 
 def run(args: argparse.Namespace, bundle: CanonicalSchemaBundle) -> int:

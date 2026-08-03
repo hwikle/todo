@@ -16,12 +16,26 @@ LABEL = "local.daily-todo"
 
 
 def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    group = subparsers.add_parser("schedule", help="manage the optional macOS schedule")
-    commands = group.add_subparsers(dest="schedule_command", required=True)
-    install = commands.add_parser("install")
-    install.add_argument("--replace", action="store_true")
-    commands.add_parser("status")
-    commands.add_parser("uninstall")
+    group = subparsers.add_parser(
+        "schedule", help="manage automatic daily list creation",
+        description="Install, inspect, or remove the optional macOS launchd schedule.",
+    )
+    commands = group.add_subparsers(
+        dest="schedule_command", required=True, metavar="ACTION", help="schedule operation to perform"
+    )
+    install = commands.add_parser(
+        "install", help="install and load the schedule",
+        description="Install and load the macOS launchd job for automatic daily list creation.",
+    )
+    install.add_argument("--replace", action="store_true", help="replace an existing launchd property list")
+    commands.add_parser(
+        "status", help="show schedule status",
+        description="Report whether the macOS schedule is installed and loaded.",
+    )
+    commands.add_parser(
+        "uninstall", help="remove the schedule",
+        description="Unload and remove the macOS launchd job.",
+    )
 
 
 def _destination() -> Path:

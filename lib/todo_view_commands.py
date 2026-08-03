@@ -18,21 +18,44 @@ from todo_validation import CanonicalTodoValidator
 
 
 def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    group = subparsers.add_parser("view", help="render and synchronize Markdown views")
-    commands = group.add_subparsers(dest="view_command", required=True)
-    render = commands.add_parser("render")
-    render.add_argument("file", type=Path)
+    group = subparsers.add_parser(
+        "view", help="render or synchronize Markdown views",
+        description="Create readable Markdown views or synchronize edited checkboxes into JSON.",
+    )
+    commands = group.add_subparsers(
+        dest="view_command", required=True, metavar="ACTION", help="view operation to perform"
+    )
+    render = commands.add_parser(
+        "render", help="render Markdown",
+        description="Render a canonical TODO list as combined or per-category Markdown.",
+    )
+    render.add_argument("file", type=Path, metavar="FILE", help="canonical TODO-list JSON file")
     outputs = render.add_mutually_exclusive_group()
-    outputs.add_argument("--output", type=Path)
-    outputs.add_argument("--output-dir", type=Path)
-    render.add_argument("--replace", action="store_true")
-    render.add_argument("--strict", action="store_true")
-    sync = commands.add_parser("sync")
-    sync.add_argument("file", type=Path)
-    sync.add_argument("--view-dir", type=Path, required=True)
-    sync.add_argument("--output", type=Path)
-    sync.add_argument("--replace", action="store_true")
-    sync.add_argument("--strict", action="store_true")
+    outputs.add_argument(
+        "--output", type=Path, metavar="FILE",
+        help="write one combined Markdown document instead of printing it",
+    )
+    outputs.add_argument(
+        "--output-dir", type=Path, metavar="DIR",
+        help="write one Markdown file per category into DIR",
+    )
+    render.add_argument("--replace", action="store_true", help="allow generated Markdown to replace existing files")
+    render.add_argument("--strict", action="store_true", help="treat validation warnings as errors")
+    sync = commands.add_parser(
+        "sync", help="synchronize checkboxes",
+        description="Apply checkbox changes from per-category Markdown views to canonical JSON.",
+    )
+    sync.add_argument("file", type=Path, metavar="FILE", help="canonical TODO-list JSON file")
+    sync.add_argument(
+        "--view-dir", type=Path, required=True, metavar="DIR",
+        help="directory containing the generated category Markdown files",
+    )
+    sync.add_argument(
+        "--output", type=Path, metavar="FILE",
+        help="write updated JSON to FILE instead of standard output",
+    )
+    sync.add_argument("--replace", action="store_true", help="allow --output to replace an existing file")
+    sync.add_argument("--strict", action="store_true", help="treat validation warnings as errors")
 
 
 def run(args: argparse.Namespace, bundle: CanonicalSchemaBundle) -> int:

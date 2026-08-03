@@ -22,17 +22,40 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    group = subparsers.add_parser("list", help="create and validate TODO lists")
-    commands = group.add_subparsers(dest="list_command", required=True)
-    create = commands.add_parser("create")
-    create.add_argument("--date", default=dt.date.today().isoformat())
-    create.add_argument("--previous", type=Path)
-    create.add_argument("--output", type=Path)
-    create.add_argument("--replace", action="store_true")
-    create.add_argument("--strict", action="store_true")
-    validate = commands.add_parser("validate")
-    validate.add_argument("paths", nargs="+", type=Path)
-    validate.add_argument("--strict", action="store_true")
+    group = subparsers.add_parser(
+        "list", help="create or validate TODO lists",
+        description="Create a canonical TODO list or check existing lists for problems.",
+    )
+    commands = group.add_subparsers(
+        dest="list_command", required=True, metavar="ACTION", help="list operation to perform"
+    )
+    create = commands.add_parser(
+        "create", help="create a TODO list",
+        description="Create a list for a date, optionally carrying forward unfinished tasks.",
+    )
+    create.add_argument(
+        "--date", default=dt.date.today().isoformat(), metavar="YYYY-MM-DD",
+        help="date for the new list (default: today)",
+    )
+    create.add_argument(
+        "--previous", type=Path, metavar="FILE",
+        help="canonical earlier list whose unfinished tasks should carry forward",
+    )
+    create.add_argument(
+        "--output", type=Path, metavar="FILE",
+        help="write JSON to FILE instead of standard output",
+    )
+    create.add_argument("--replace", action="store_true", help="allow --output to replace an existing file")
+    create.add_argument("--strict", action="store_true", help="treat validation warnings as errors")
+    validate = commands.add_parser(
+        "validate", help="validate TODO lists",
+        description="Check one or more JSON files or directories against canonical rules.",
+    )
+    validate.add_argument(
+        "paths", nargs="+", type=Path, metavar="PATH",
+        help="JSON file or directory to validate; directories are searched recursively",
+    )
+    validate.add_argument("--strict", action="store_true", help="treat validation warnings as errors")
 
 
 def _expanded(paths: list[Path]) -> list[Path]:
