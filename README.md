@@ -12,6 +12,7 @@ bin/todo                       Task CLI and validator
 bin/create-daily-todo          Daily generator entry point
 bin/todo-config                Configuration helper entry point
 bin/validate-todos             Standalone schema validator
+bin/setup                      Local dependency setup
 config/task-types.conf         Flexible category definitions
 config/priorities.conf         Flexible ordered priorities
 config/due-kinds.conf          Flexible deadline classifications
@@ -23,6 +24,8 @@ schema/task.schema.json        Canonical task definition contract
 schema/todo-list.schema.json   Canonical daily-list contract
 todos/YYYY-MM-DD/*.md          Authoritative daily checklists
 ```
+
+See `INSTALL.md` for initial setup and dependency-management instructions.
 
 The initial daily categories are Work, Learning, Software Projects, Finance,
 Health, Household, and Errands. Someday is a persistent backlog. Initial
@@ -66,18 +69,23 @@ run `bin/todo validate --fix` to assign one.
 
 ## Common commands
 
-Create or validate today's files:
+Validate canonical JSON independently of generation or scheduling:
 
 ```text
-bin/create-daily-todo
-bin/validate-todos
-bin/validate-todos --fix
+bin/validate-todos path/to/todo-list.json
+bin/validate-todos --strict path/to/todo-list.json
 ```
 
 > **Schema transition:** The schemas now describe the forthcoming canonical JSON
 > model. The current Markdown validator and generator still emit the legacy
 > recursive `subtasks` model, so do not run them until the validation and
 > conversion phase is complete.
+
+The standalone canonical validator is available during this transition. It
+performs Draft 2020-12 schema validation, reference and dependency-graph checks,
+calendar validation, category-membership checks, and priority-order checks.
+Ambiguities are errors. Advisory conditions are warnings unless `--strict`
+promotes them to errors.
 
 In the canonical model, priority is an optional property of each task. Category
 definitions contain stable IDs and display names, while separate category

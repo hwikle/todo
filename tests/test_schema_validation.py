@@ -1,81 +1,162 @@
 #!/usr/bin/env python3
-"""Regression tests for direct Markdown-to-JSON-Schema validation."""
+"""Tests for canonical JSON schema and semantic validation."""
 
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "lib"))
+
+from todo_validation import CanonicalTodoValidator, validate_completion_observations
 
 
-class SchemaValidationTest(unittest.TestCase):
-    def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(prefix="todo-schema-test-")
-        self.repo = Path(self.temporary.name) / "todo"
-        self.repo.mkdir()
-        for name in ("bin", "config", "schema", "backlog"):
-            shutil.copytree(ROOT / name, self.repo / name)
-        self.invoke("bin/create-daily-todo", "--date", "2042-01-02")
-        self.invoke(
-            "bin/todo", "add", "--date", "2042-01-02", "--type", "work",
-            "--priority", "Must", "--due-date", "2042-01-05", "--due-time",
-            "09:30", "--due-kind", "hard", "Schema-backed task",
+def task(task_id: str, name: str, priority: str = "must", **overrides: object) -> dict[str, object]:
+    value: dict[str, object] = {
+        "id": task_id,
+        "name": name,
+        "priority": priority,
+        "completed": False,
+        "dependencies": [],
+    }
+    value.update(overrides)
+    return value
+
+
+def valid_document() -> dict[str, object]:
+    return {
+        "date": "2042-01-02",
+        "tasks": [
+            task("aaaaaaaaaaaa", "Parent", dependencies=["bbbbbbbbbbbb"]),
+            task("bbbbbbbbbbbb", "Dependency", priority="should"),
+        ],
+        "categories": [{"id": "work", "display_name": "Work"}],
+        "category_memberships": [
+            {"category": "work", "tasks": ["aaaaaaaaaaaa", "bbbbbbbbbbbb"]}
+        ],
+    }
+
+
+class CanonicalValidationTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.validator = CanonicalTodoValidator(ROOT / "schema")
+
+    def errors(self, document: dict[str, object]) -> list[str]:
+        return [issue.message for issue in self.validator.validate(document) if issue.severity == "error"]
+
+    def warnings(self, document: dict[str, object]) -> list[str]:
+        return [issue.message for issue in self.validator.validate(document) if issue.severity == "warning"]
+
+    def test_valid_document(self) -> None:
+        self.assertEqual(self.validator.validate(valid_document()), [])
+
+    def test_schema_and_calendar_errors(self) -> None:
+        document = valid_document()
+        document["tasks"][0]["due"] = {"year": 2042, "month": 2, "day": 30}
+        document["tasks"][0]["deadline_kind"] = "hard"
+        self.assertTrue(any("invalid calendar date" in item for item in self.errors(document)))
+
+    def test_duplicate_and_ambiguous_task_ids(self) -> None:
+        document = valid_document()
+        document["tasks"].append(task("bbbbbbbbbbbb", "Duplicate"))
+        messages = self.errors(document)
+        self.assertTrue(any("duplicate task ID" in item for item in messages))
+        self.assertTrue(any("ambiguous task ID" in item for item in messages))
+
+    def test_unknown_membership_references(self) -> None:
+        document = valid_document()
+        document["category_memberships"][0] = {
+            "category": "missing",
+            "tasks": ["cccccccccccc"],
+        }
+        messages = self.errors(document)
+        self.assertTrue(any("unknown category ID" in item for item in messages))
+        self.assertTrue(any("unknown task ID" in item for item in messages))
+
+    def test_self_dependency_and_cycle(self) -> None:
+        document = valid_document()
+        document["tasks"][0]["dependencies"] = ["aaaaaaaaaaaa"]
+        self.assertTrue(any("depend on itself" in item for item in self.errors(document)))
+
+        document = valid_document()
+        document["tasks"][1]["dependencies"] = ["aaaaaaaaaaaa"]
+        self.assertTrue(any("dependency cycle" in item for item in self.errors(document)))
+
+    def test_completed_task_requires_completed_dependencies(self) -> None:
+        document = valid_document()
+        document["tasks"][0]["completed"] = True
+        self.assertTrue(any("incomplete dependency" in item for item in self.errors(document)))
+
+    def test_dependency_cannot_have_higher_priority(self) -> None:
+        document = valid_document()
+        document["tasks"][0]["priority"] = "could"
+        document["tasks"][1]["priority"] = "must"
+        self.assertTrue(any("higher than task priority" in item for item in self.errors(document)))
+
+    def test_duplicate_membership_is_an_error(self) -> None:
+        document = valid_document()
+        document["category_memberships"].append(
+            {"category": "work", "tasks": ["aaaaaaaaaaaa"]}
         )
+        self.assertTrue(any("duplicate category/task membership" in item for item in self.errors(document)))
 
-    def tearDown(self) -> None:
-        self.temporary.cleanup()
+    def test_advisories_are_warnings(self) -> None:
+        document = valid_document()
+        document["tasks"][0].pop("priority")
+        document["category_memberships"][0]["tasks"] = ["bbbbbbbbbbbb"]
+        document["categories"].append({"id": "other", "display_name": "Work"})
+        messages = self.warnings(document)
+        self.assertTrue(any("no priority" in item for item in messages))
+        self.assertTrue(any("no category" in item for item in messages))
+        self.assertTrue(any("category is empty" in item for item in messages))
+        self.assertTrue(any("duplicate category display name" in item for item in messages))
 
-    def invoke(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [str(self.repo / arguments[0]), *arguments[1:]],
-            cwd=self.repo,
-            check=check,
-            capture_output=True,
-            text=True,
+    def test_multiple_categories_is_a_warning(self) -> None:
+        document = valid_document()
+        document["categories"].append({"id": "other", "display_name": "Other"})
+        document["category_memberships"].append(
+            {"category": "other", "tasks": ["aaaaaaaaaaaa"]}
         )
+        self.assertTrue(any("multiple categories" in item for item in self.warnings(document)))
 
-    def test_standalone_validator_accepts_valid_markdown(self) -> None:
-        result = self.invoke("bin/validate-todos")
-        self.assertIn("Validated", result.stdout)
-
-    def test_validator_reads_the_schema_file(self) -> None:
-        path = self.repo / "schema" / "task.schema.json"
-        schema = json.loads(path.read_text())
-        schema["$defs"]["task"]["required"].append("schemaProbe")
-        path.write_text(json.dumps(schema, indent=2) + "\n")
-        result = self.invoke("bin/validate-todos", check=False)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("schema requires fields", result.stderr)
-
-    def test_generation_validates_due_schema_before_writing(self) -> None:
-        path = self.repo / "schema" / "due.schema.json"
-        schema = json.loads(path.read_text())
-        schema["required"].append("schemaProbe")
-        path.write_text(json.dumps(schema, indent=2) + "\n")
-        result = self.invoke(
-            "bin/create-daily-todo", "--date", "2042-01-03", check=False
+    def test_conflicting_rendered_checkboxes_are_errors(self) -> None:
+        issues = validate_completion_observations(
+            [
+                ("aaaaaaaaaaaa", False, "work.md:3"),
+                ("aaaaaaaaaaaa", True, "work.md:9"),
+            ]
         )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("schema requires fields", result.stderr)
-        self.assertFalse((self.repo / "todos" / "2042-01-03").exists())
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].severity, "error")
 
-    def test_fix_assigns_id_before_schema_validation(self) -> None:
-        path = self.repo / "todos" / "2042-01-02" / "work.md"
-        content = path.read_text().replace(
-            "## Could\n", "## Could\n\n- [ ] Manually entered task\n"
-        )
-        path.write_text(content)
-        failed = self.invoke("bin/validate-todos", check=False)
-        self.assertEqual(failed.returncode, 2)
-        self.assertIn("schema requires string", failed.stderr)
-        self.invoke("bin/validate-todos", "--fix")
-        self.assertRegex(path.read_text(), r"Manually entered task <!-- task:[0-9a-f]{12} -->")
+    def test_cli_strict_mode_promotes_warnings(self) -> None:
+        document = valid_document()
+        document["tasks"][0].pop("priority")
+        with tempfile.TemporaryDirectory(prefix="todo-validation-") as temporary:
+            path = Path(temporary) / "todo.json"
+            path.write_text(json.dumps(document))
+            relaxed = subprocess.run(
+                [str(ROOT / "bin" / "validate-todos"), str(path)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            strict = subprocess.run(
+                [str(ROOT / "bin" / "validate-todos"), "--strict", str(path)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(relaxed.returncode, 0, relaxed.stderr)
+        self.assertEqual(strict.returncode, 1, strict.stderr)
+        self.assertIn("error (strict)", strict.stderr)
 
 
 if __name__ == "__main__":

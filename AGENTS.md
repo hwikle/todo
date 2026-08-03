@@ -68,18 +68,25 @@ separate category definitions and memberships. The current Markdown validator
 and generator still emit recursive `subtasks` and derive category and priority
 from filenames and headings.
 
-During this transition, do not run `bin/validate-todos`, `bin/todo generate`, or
-`bin/create-daily-todo`. For schema-only changes, verify JSON syntax and local
-references directly. The validation and conversion phase must restore the full
-verification commands before scheduling is enabled.
+During this transition, `bin/validate-todos` validates canonical JSON documents
+and is safe to run independently. Do not run `bin/todo generate` or
+`bin/create-daily-todo`; those legacy paths still target Markdown. The
+conversion phase must restore generation verification before scheduling is
+enabled.
+
+Canonical validation commands are:
+
+```text
+bin/validate-todos path/to/todo-list.json
+bin/validate-todos --strict path/to/todo-list.json
+python3 tests/test_schema_validation.py
+```
 
 Legacy verification commands, to be restored after migration, are:
 
 ```text
-bin/validate-todos --fix
 bin/todo list --date YYYY-MM-DD
 python3 tests/test_generation_independent.py
-python3 tests/test_schema_validation.py
 ```
 
 When changing the scheduler template, also run:

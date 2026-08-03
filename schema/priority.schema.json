@@ -3,5 +3,6 @@
   "$id": "https://local.invalid/todo/priority.schema.json",
   "title": "Priority",
   "type": "string",
-  "enum": ["must", "should", "could"]
+  "enum": ["must", "should", "could"],
+  "x-order": ["must", "should", "could"]
 }
