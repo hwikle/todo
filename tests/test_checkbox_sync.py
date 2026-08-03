@@ -98,7 +98,7 @@ class CheckboxSyncTest(unittest.TestCase):
         path.write_text(path.read_text().replace("- [ ] Parent", "- [x] Parent", 1))
         before = todo_list.read_text()
         result = subprocess.run(
-            [str(ROOT / "bin" / "sync-todos"), str(todo_list)],
+            [str(ROOT / "bin" / "todo"), "view", "sync", str(todo_list), "--view-dir", str(self.root)],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -107,7 +107,7 @@ class CheckboxSyncTest(unittest.TestCase):
         self.assertIn("incomplete dependency", result.stderr)
         self.assertEqual(todo_list.read_text(), before)
 
-    def test_cli_supports_output_stdout_and_dry_run(self) -> None:
+    def test_cli_supports_output_and_stdout(self) -> None:
         todo_list = self.root / "todo.json"
         todo_list.write_text(json.dumps(self.document, indent=2) + "\n")
         path = self.root / "work.md"
@@ -117,23 +117,18 @@ class CheckboxSyncTest(unittest.TestCase):
         alternate = self.root / "output" / "updated.json"
         written = subprocess.run(
             [
-                str(ROOT / "bin" / "sync-todos"),
+                str(ROOT / "bin" / "todo"), "view", "sync",
+                str(todo_list),
+                "--view-dir", str(self.root),
                 "--output",
                 str(alternate),
-                str(todo_list),
             ],
             cwd=ROOT,
             capture_output=True,
             text=True,
         )
         stdout = subprocess.run(
-            [str(ROOT / "bin" / "sync-todos"), "--stdout", str(todo_list)],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-        dry_run = subprocess.run(
-            [str(ROOT / "bin" / "sync-todos"), "--dry-run", str(todo_list)],
+            [str(ROOT / "bin" / "todo"), "view", "sync", str(todo_list), "--view-dir", str(self.root)],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -143,8 +138,6 @@ class CheckboxSyncTest(unittest.TestCase):
         self.assertFalse(json.loads(todo_list.read_text())["tasks"][1]["completed"])
         self.assertEqual(stdout.returncode, 0, stdout.stderr)
         self.assertTrue(json.loads(stdout.stdout)["tasks"][1]["completed"])
-        self.assertEqual(dry_run.returncode, 0, dry_run.stderr)
-        self.assertIn("Would synchronize 1 task", dry_run.stdout)
         self.assertFalse(json.loads(todo_list.read_text())["tasks"][1]["completed"])
 
 

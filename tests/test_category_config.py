@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 class CategoryConfigTest(unittest.TestCase):
     def test_lists_canonical_categories(self) -> None:
         result = subprocess.run(
-            [str(ROOT / "bin" / "todo-config"), "list-types"],
+            [str(ROOT / "bin" / "todo"), "category", "list"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -27,12 +27,12 @@ class CategoryConfigTest(unittest.TestCase):
         config = ROOT / "config" / "task-types.conf"
         before = config.read_text()
         result = subprocess.run(
-            [str(ROOT / "bin" / "todo-config"), "add-type", "work", "Duplicate"],
+            [str(ROOT / "bin" / "todo"), "category", "add", "work", "Duplicate"],
             cwd=ROOT,
             capture_output=True,
             text=True,
         )
-        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.returncode, 1)
         self.assertIn("already exists", result.stderr)
         self.assertEqual(config.read_text(), before)
 

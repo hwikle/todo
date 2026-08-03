@@ -86,25 +86,25 @@ class MarkdownRenderingTest(unittest.TestCase):
             source = root / "todo.json"
             source.write_text(json.dumps(document()))
             first = subprocess.run(
-                [str(ROOT / "bin" / "render-todos"), str(source)],
+                [str(ROOT / "bin" / "todo"), "view", "render", str(source), "--output-dir", str(root)],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
             )
             second = subprocess.run(
-                [str(ROOT / "bin" / "render-todos"), str(source)],
+                [str(ROOT / "bin" / "todo"), "view", "render", str(source), "--output-dir", str(root)],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
             )
             replaced = subprocess.run(
-                [str(ROOT / "bin" / "render-todos"), "--replace", str(source)],
+                [str(ROOT / "bin" / "todo"), "view", "render", str(source), "--output-dir", str(root), "--replace"],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
             )
             self.assertEqual(first.returncode, 0, first.stderr)
-            self.assertEqual(second.returncode, 2)
+            self.assertEqual(second.returncode, 1)
             self.assertEqual(replaced.returncode, 0, replaced.stderr)
 
     def test_combined_rendering_to_file_and_stdout(self) -> None:
@@ -122,17 +122,16 @@ class MarkdownRenderingTest(unittest.TestCase):
             source.write_text(json.dumps(expanded))
             written = subprocess.run(
                 [
-                    str(ROOT / "bin" / "render-todos"),
-                    "--combined-output",
-                    str(output),
+                    str(ROOT / "bin" / "todo"), "view", "render",
                     str(source),
+                    "--output", str(output),
                 ],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
             )
             stdout = subprocess.run(
-                [str(ROOT / "bin" / "render-todos"), "--stdout", str(source)],
+                [str(ROOT / "bin" / "todo"), "view", "render", str(source)],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,

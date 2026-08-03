@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression test: the scheduler entry point has no scheduler dependency."""
+"""Regression test: list creation has no scheduler or rendering dependency."""
 
 from __future__ import annotations
 
@@ -13,43 +13,39 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class IndependentGenerationTest(unittest.TestCase):
-    def test_entry_point_generates_without_launchd_state(self) -> None:
+    def test_list_create_generates_only_canonical_json(self) -> None:
         with tempfile.TemporaryDirectory(prefix="todo-entrypoint-") as temporary:
-            data_dir = Path(temporary) / "todos"
+            output = Path(temporary) / "todo.json"
             result = subprocess.run(
                 [
-                    str(ROOT / "bin" / "create-daily-todo"),
+                    str(ROOT / "bin" / "todo"), "list", "create",
                     "--date",
                     "2042-01-02",
-                    "--data-dir",
-                    str(data_dir),
+                    "--output", str(output),
                 ],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
             )
-            daily = data_dir / "2042-01-02"
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertTrue((daily / "todo.json").is_file())
-            self.assertEqual(len(list(daily.glob("*.md"))), 8)
+            self.assertTrue(output.is_file())
+            self.assertEqual(list(output.parent.glob("*.md")), [])
             self.assertFalse((Path(temporary) / "launchd").exists())
 
-    def test_existing_day_is_not_overwritten(self) -> None:
+    def test_existing_output_is_not_overwritten(self) -> None:
         with tempfile.TemporaryDirectory(prefix="todo-entrypoint-") as temporary:
-            data_dir = Path(temporary) / "todos"
+            target = Path(temporary) / "todo.json"
             command = [
-                str(ROOT / "bin" / "create-daily-todo"),
+                str(ROOT / "bin" / "todo"), "list", "create",
                 "--date",
                 "2042-01-02",
-                "--data-dir",
-                str(data_dir),
+                "--output", str(target),
             ]
             first = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
-            target = data_dir / "2042-01-02" / "todo.json"
             self.assertEqual(first.returncode, 0, first.stderr)
             before = target.read_text()
             second = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
-            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual(second.returncode, 1)
             self.assertEqual(target.read_text(), before)
 
 

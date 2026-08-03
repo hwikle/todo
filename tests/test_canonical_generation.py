@@ -17,7 +17,6 @@ sys.path.insert(0, str(ROOT / "lib"))
 
 from todo_generation import generate_document
 from todo_model import TodoList
-from todo_repository import latest_previous_list
 from todo_validation import CanonicalTodoValidator
 
 
@@ -93,53 +92,21 @@ class CanonicalGenerationTest(unittest.TestCase):
         self.assertEqual(generated["tasks"], [])
         self.assertEqual(generated["categories"], [{"id": "work", "display_name": "Work"}])
 
-    def test_finds_latest_prior_canonical_list(self) -> None:
+    def test_cli_generation_defaults_to_stdout(self) -> None:
         with tempfile.TemporaryDirectory(prefix="todo-generation-") as temporary:
-            root = Path(temporary)
-            for date in ("2042-01-01", "2042-01-02"):
-                path = root / date
-                path.mkdir()
-                (path / "todo.json").write_text("{}")
-            self.assertEqual(
-                latest_previous_list(root, "2042-01-03"),
-                root / "2042-01-02" / "todo.json",
-            )
-
-    def test_cli_generation_is_independent_and_no_overwrite(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="todo-generation-") as temporary:
-            data_dir = Path(temporary) / "todos"
             result = subprocess.run(
                 [
-                    str(ROOT / "bin" / "generate-todos"),
+                    str(ROOT / "bin" / "todo"), "list", "create",
                     "--date",
                     "2042-01-03",
-                    "--data-dir",
-                    str(data_dir),
-                    "--render",
                 ],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
             )
-            target = data_dir / "2042-01-03" / "todo.json"
             self.assertEqual(result.returncode, 0, result.stderr)
-            before = target.read_text()
-            second = subprocess.run(
-                [
-                    str(ROOT / "bin" / "generate-todos"),
-                    "--date",
-                    "2042-01-03",
-                    "--data-dir",
-                    str(data_dir),
-                    "--render",
-                ],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(second.returncode, 0, second.stderr)
-            self.assertEqual(target.read_text(), before)
-            self.assertFalse((data_dir.parent / "launchd").exists())
+            self.assertEqual(json.loads(result.stdout)["date"], "2042-01-03")
+            self.assertEqual(list(Path(temporary).iterdir()), [])
 
     def test_cli_accepts_explicit_previous_and_output_paths(self) -> None:
         with tempfile.TemporaryDirectory(prefix="todo-generation-paths-") as temporary:
@@ -150,14 +117,13 @@ class CanonicalGenerationTest(unittest.TestCase):
             previous.write_text(json.dumps(previous_document()))
             result = subprocess.run(
                 [
-                    str(ROOT / "bin" / "generate-todos"),
+                    str(ROOT / "bin" / "todo"), "list", "create",
                     "--date",
                     "2042-01-03",
                     "--previous",
                     str(previous),
                     "--output",
                     str(output),
-                    "--render",
                 ],
                 cwd=ROOT,
                 capture_output=True,
@@ -165,7 +131,7 @@ class CanonicalGenerationTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(output.read_text())["date"], "2042-01-03")
-            self.assertTrue((output.parent / "work.md").is_file())
+            self.assertEqual(list(output.parent.glob("*.md")), [])
 
     def test_explicit_previous_must_predate_target(self) -> None:
         with tempfile.TemporaryDirectory(prefix="todo-generation-date-") as temporary:
@@ -174,7 +140,7 @@ class CanonicalGenerationTest(unittest.TestCase):
             previous.write_text(json.dumps(previous_document()))
             result = subprocess.run(
                 [
-                    str(ROOT / "bin" / "generate-todos"),
+                    str(ROOT / "bin" / "todo"), "list", "create",
                     "--date",
                     "2042-01-02",
                     "--previous",
@@ -186,7 +152,7 @@ class CanonicalGenerationTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-            self.assertEqual(result.returncode, 2)
+            self.assertEqual(result.returncode, 1)
             self.assertIn("must predate", result.stderr)
 
 

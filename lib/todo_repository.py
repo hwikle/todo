@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import datetime as dt
 from dataclasses import dataclass
 from pathlib import Path
 import re
-from typing import Optional
 
 from todo_model import Category
 
@@ -56,22 +54,3 @@ def configured_daily_categories(path: Path) -> list[Category]:
         for item in category_definitions(path)
         if item.behavior == "daily"
     ]
-
-
-def latest_previous_list(data_dir: Path, target_date: str) -> Optional[Path]:
-    candidates: list[tuple[str, Path]] = []
-    if not data_dir.exists():
-        return None
-    for child in data_dir.iterdir():
-        if not child.is_dir() or child.name >= target_date:
-            continue
-        try:
-            dt.date.fromisoformat(child.name)
-        except ValueError:
-            continue
-        candidate = child / "todo.json"
-        if candidate.is_file():
-            candidates.append((child.name, candidate))
-    if not candidates:
-        return None
-    return max(candidates, key=lambda item: item[0])[1]

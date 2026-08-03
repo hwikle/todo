@@ -120,26 +120,26 @@ class MarkdownConversionTest(unittest.TestCase):
         self.write("work.md", "# Work — 2042-01-02\n\n## Must\n\n- [ ] Task\n")
         output = self.day / "todo.json"
         first = subprocess.run(
-            [str(ROOT / "bin" / "convert-todos"), str(self.day)],
+            [str(ROOT / "bin" / "todo"), "import", "markdown", str(self.day), "--output", str(output)],
             cwd=ROOT,
             capture_output=True,
             text=True,
         )
         second = subprocess.run(
-            [str(ROOT / "bin" / "convert-todos"), str(self.day)],
+            [str(ROOT / "bin" / "todo"), "import", "markdown", str(self.day), "--output", str(output)],
             cwd=ROOT,
             capture_output=True,
             text=True,
         )
         self.assertEqual(first.returncode, 0, first.stderr)
-        self.assertEqual(second.returncode, 2)
+        self.assertEqual(second.returncode, 1)
         self.assertIn("refusing to overwrite", second.stderr)
         self.assertEqual(json.loads(output.read_text())["date"], "2042-01-02")
 
     def test_stdout_does_not_write(self) -> None:
         self.write("work.md", "# Work — 2042-01-02\n\n## Must\n\n- [ ] Task\n")
         result = subprocess.run(
-            [str(ROOT / "bin" / "convert-todos"), "--stdout", str(self.day)],
+            [str(ROOT / "bin" / "todo"), "import", "markdown", str(self.day)],
             cwd=ROOT,
             capture_output=True,
             text=True,

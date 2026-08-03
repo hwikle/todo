@@ -72,7 +72,7 @@ class AddTodoTest(unittest.TestCase):
             [DEPENDENCY_ID, ADDED_ID],
         )
 
-    def test_cli_defaults_to_cwd_todo_and_does_not_render(self) -> None:
+    def test_cli_updates_explicit_output_and_does_not_render(self) -> None:
         with tempfile.TemporaryDirectory(prefix="todo-add-") as temporary:
             root = Path(temporary)
             path = root / "todo.json"
@@ -81,7 +81,7 @@ class AddTodoTest(unittest.TestCase):
             view.write_text("unchanged\n")
             result = subprocess.run(
                 [
-                    str(ROOT / "bin" / "add-todo"),
+                    str(ROOT / "bin" / "todo"), "task", "add", str(path),
                     "New task",
                     "--category",
                     "work",
@@ -97,6 +97,9 @@ class AddTodoTest(unittest.TestCase):
                     "09:30",
                     "--deadline-kind",
                     "hard",
+                    "--output",
+                    str(path),
+                    "--replace",
                 ],
                 cwd=root,
                 capture_output=True,
@@ -118,10 +121,8 @@ class AddTodoTest(unittest.TestCase):
             before = path.read_bytes()
             result = subprocess.run(
                 [
-                    str(ROOT / "bin" / "add-todo"),
+                    str(ROOT / "bin" / "todo"), "task", "add", str(path),
                     "Invalid task",
-                    "--output",
-                    str(path),
                     "--category",
                     "work",
                     "--priority",
@@ -133,13 +134,13 @@ class AddTodoTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-            self.assertEqual(result.returncode, 2)
+            self.assertEqual(result.returncode, 1)
             self.assertIn("higher priority", result.stderr)
             self.assertEqual(path.read_bytes(), before)
 
     def test_priority_help_comes_from_schema_policy(self) -> None:
         result = subprocess.run(
-            [str(ROOT / "bin" / "add-todo"), "--help"],
+            [str(ROOT / "bin" / "todo"), "task", "add", "--help"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -147,6 +148,25 @@ class AddTodoTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         choices = "{" + ",".join(self.bundle.priority_policy.order) + "}"
         self.assertIn(choices, result.stdout)
+
+    def test_dependency_of_updates_selected_parent(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="todo-parent-") as temporary:
+            path = Path(temporary) / "todo.json"
+            path.write_text(json.dumps(document(), indent=2) + "\n")
+            result = subprocess.run(
+                [
+                    str(ROOT / "bin" / "todo"), "task", "add", str(path),
+                    "New dependency", "--category", "work", "--priority", "could",
+                    "--dependency-of", "Existing dependency",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            updated = json.loads(result.stdout)
+            self.assertEqual(updated["tasks"][0]["dependencies"], [updated["tasks"][1]["id"]])
+            self.assertEqual(path.read_text(), json.dumps(document(), indent=2) + "\n")
 
 
 if __name__ == "__main__":

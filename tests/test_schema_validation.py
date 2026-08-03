@@ -147,13 +147,13 @@ class CanonicalValidationTest(unittest.TestCase):
             path = Path(temporary) / "todo.json"
             path.write_text(json.dumps(document))
             relaxed = subprocess.run(
-                [str(ROOT / "bin" / "validate-todos"), str(path)],
+                [str(ROOT / "bin" / "todo"), "list", "validate", str(path)],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
             )
             strict = subprocess.run(
-                [str(ROOT / "bin" / "validate-todos"), "--strict", str(path)],
+                [str(ROOT / "bin" / "todo"), "list", "validate", "--strict", str(path)],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,

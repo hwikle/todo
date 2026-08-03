@@ -41,3 +41,10 @@ def write_text_atomic(
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
+
+
+def emit_text(content: str, output: Path | None, replace: bool) -> None:
+    if output is None:
+        print(content, end="")
+        return
+    write_text_atomic(output.resolve(), content, replace=replace)
