@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "lib"))
 
-from todo_render import render_document
+from todo_render import combine_rendered, render_document
 from todo_validation import CanonicalTodoValidator
 
 
@@ -98,6 +98,41 @@ class MarkdownRenderingTest(unittest.TestCase):
             self.assertEqual(first.returncode, 0, first.stderr)
             self.assertEqual(second.returncode, 2)
             self.assertEqual(replaced.returncode, 0, replaced.stderr)
+
+    def test_combined_rendering_to_file_and_stdout(self) -> None:
+        expanded = document()
+        expanded["categories"].append({"id": "health", "display_name": "Health"})
+        expanded["category_memberships"].append({"category": "health", "tasks": []})
+        rendered = render_document(expanded, list(self.validator.priority_order))
+        combined = combine_rendered(rendered)
+        self.assertIn("# Work — 2042-01-02", combined)
+        self.assertIn("\n---\n\n# Health — 2042-01-02", combined)
+        with tempfile.TemporaryDirectory(prefix="todo-render-combined-") as temporary:
+            root = Path(temporary)
+            source = root / "todo.json"
+            output = root / "combined" / "todo.md"
+            source.write_text(json.dumps(expanded))
+            written = subprocess.run(
+                [
+                    str(ROOT / "bin" / "render-todos"),
+                    "--combined-output",
+                    str(output),
+                    str(source),
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            stdout = subprocess.run(
+                [str(ROOT / "bin" / "render-todos"), "--stdout", str(source)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(written.returncode, 0, written.stderr)
+            self.assertEqual(output.read_text(), combined)
+            self.assertEqual(stdout.returncode, 0, stdout.stderr)
+            self.assertEqual(stdout.stdout, combined)
 
 
 if __name__ == "__main__":

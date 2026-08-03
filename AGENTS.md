@@ -33,7 +33,7 @@ bin/validate-todos todos/YYYY-MM-DD/todo.json
 bin/convert-todos todos/YYYY-MM-DD
 bin/render-todos --replace todos/YYYY-MM-DD/todo.json
 bin/sync-todos todos/YYYY-MM-DD/todo.json
-bin/generate-todos --date YYYY-MM-DD
+bin/generate-todos --date YYYY-MM-DD --previous PATH --output PATH
 bin/create-daily-todo --date YYYY-MM-DD
 ```
 

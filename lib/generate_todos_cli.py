@@ -28,6 +28,8 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--date", default=dt.date.today().isoformat())
     result.add_argument("--data-dir", type=Path, default=ROOT / "todos")
+    result.add_argument("--previous", type=Path, help="explicit previous canonical list")
+    result.add_argument("--output", type=Path, help="generated JSON destination")
     result.add_argument("--render", action="store_true", help="also render category Markdown")
     result.add_argument("--strict", action="store_true", help="treat warnings as errors")
     return result
@@ -60,15 +62,22 @@ def print_issues(issues: list, strict: bool, prefix: str = "") -> bool:
 
 def main() -> int:
     args = parser().parse_args()
+    try:
+        target_date = dt.date.fromisoformat(args.date).isoformat()
+    except ValueError:
+        print(f"error: invalid target date {args.date!r}", file=sys.stderr)
+        return 2
     data_dir = args.data_dir.resolve()
-    target = data_dir / args.date / "todo.json"
+    target = args.output.resolve() if args.output else data_dir / target_date / "todo.json"
     if target.exists():
         print(f"Canonical TODO list already exists: {target}")
         return 0
     try:
         validator = CanonicalTodoValidator(ROOT / "schema")
         categories = configured_daily_categories(ROOT / "config" / "task-types.conf")
-        previous_path = latest_previous_list(data_dir, args.date)
+        previous_path = args.previous.resolve() if args.previous else latest_previous_list(
+            data_dir, target_date
+        )
         previous = json.loads(previous_path.read_text()) if previous_path else None
     except (OSError, json.JSONDecodeError, GenerationError, ValidationConfigurationError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -78,8 +87,14 @@ def main() -> int:
         if print_issues(previous_issues, args.strict, f"{previous_path}:"):
             print("Generation stopped because the previous list is invalid.", file=sys.stderr)
             return 1
+        if previous["date"] >= target_date:
+            print(
+                f"error: previous list date {previous['date']} must predate {target_date}",
+                file=sys.stderr,
+            )
+            return 2
     try:
-        document = generate_document(args.date, previous, categories)
+        document = generate_document(target_date, previous, categories)
     except GenerationError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -96,7 +111,7 @@ def main() -> int:
     except OSError as exc:
         print(f"error: cannot write generated TODO list: {exc}", file=sys.stderr)
         return 2
-    source = f" from {previous_path.parent.name}" if previous_path else ""
+    source = f" from {previous_path}" if previous_path else ""
     rendered_text = " and rendered Markdown" if args.render else ""
     print(f"Generated {target}{source}{rendered_text}")
     return 0

@@ -95,6 +95,13 @@ def render_document(
     return result
 
 
+def combine_rendered(rendered: dict[str, RenderedMarkdown]) -> str:
+    """Combine category views in canonical category order."""
+    return "\n---\n\n".join(
+        view.content.rstrip() for view in rendered.values()
+    ) + "\n"
+
+
 def _render_task(
     task: dict[str, Any],
     tasks: dict[str, dict[str, Any]],

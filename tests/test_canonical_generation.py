@@ -136,6 +136,54 @@ class CanonicalGenerationTest(unittest.TestCase):
             self.assertEqual(target.read_text(), before)
             self.assertFalse((data_dir.parent / "launchd").exists())
 
+    def test_cli_accepts_explicit_previous_and_output_paths(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="todo-generation-paths-") as temporary:
+            root = Path(temporary)
+            previous = root / "input" / "prior.json"
+            output = root / "custom" / "generated.json"
+            previous.parent.mkdir()
+            previous.write_text(json.dumps(previous_document()))
+            result = subprocess.run(
+                [
+                    str(ROOT / "bin" / "generate-todos"),
+                    "--date",
+                    "2042-01-03",
+                    "--previous",
+                    str(previous),
+                    "--output",
+                    str(output),
+                    "--render",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(output.read_text())["date"], "2042-01-03")
+            self.assertTrue((output.parent / "work.md").is_file())
+
+    def test_explicit_previous_must_predate_target(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="todo-generation-date-") as temporary:
+            root = Path(temporary)
+            previous = root / "prior.json"
+            previous.write_text(json.dumps(previous_document()))
+            result = subprocess.run(
+                [
+                    str(ROOT / "bin" / "generate-todos"),
+                    "--date",
+                    "2042-01-02",
+                    "--previous",
+                    str(previous),
+                    "--output",
+                    str(root / "generated.json"),
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("must predate", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

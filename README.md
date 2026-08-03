@@ -46,10 +46,22 @@ Dependencies are also rendered recursively, so one canonical task may appear
 more than once. Nested tasks display their priority when it differs from the
 surrounding section.
 
+Render all categories into one presentation document:
+
+```text
+bin/render-todos --combined-output /path/to/todo.md path/to/todo.json
+bin/render-todos --stdout path/to/todo.json
+```
+
+Combined views are presentation outputs and are not synchronization inputs.
+
 After editing checkbox markers in Markdown, synchronize them into JSON:
 
 ```text
 bin/sync-todos todos/2026-08-02/todo.json
+bin/sync-todos --output /path/to/updated.json todos/2026-08-02/todo.json
+bin/sync-todos --stdout todos/2026-08-02/todo.json
+bin/sync-todos --dry-run todos/2026-08-02/todo.json
 ```
 
 Synchronization requires every non-checkbox character to match a fresh
@@ -63,6 +75,8 @@ Generate canonical JSON without involving a scheduler:
 ```text
 bin/generate-todos
 bin/generate-todos --date 2026-08-03
+bin/generate-todos --date 2026-08-03 --previous /path/to/prior.json \
+  --output /path/to/generated.json
 ```
 
 Generate JSON and category views through the scheduler entry point:
