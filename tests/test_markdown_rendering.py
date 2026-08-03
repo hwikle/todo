@@ -56,19 +56,53 @@ class MarkdownRenderingTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.validator = CanonicalTodoValidator(ROOT / "schema")
 
-    def test_renders_id_free_repeated_dependencies(self) -> None:
+    def test_renders_category_dependency_only_beneath_parent(self) -> None:
         rendered = render_document(
             document(), list(self.validator.priority_policy.order)
         )["work.md"]
         self.assertNotIn("task:", rendered.content)
         self.assertNotIn("00000000-0000-4000-8000-000000000001", rendered.content)
-        self.assertEqual(rendered.content.count("Shared dependency"), 2)
+        self.assertEqual(rendered.content.count("Shared dependency"), 1)
         self.assertIn("    - [ ] Shared dependency — Should", rendered.content)
-        self.assertIn("## Should\n\n- [ ] Shared dependency", rendered.content)
+        self.assertNotIn("## Should\n\n- [ ] Shared dependency", rendered.content)
         child_occurrences = [
             item for item in rendered.occurrences if item.task_id == "00000000-0000-4000-8000-000000000002"
         ]
-        self.assertEqual(len(child_occurrences), 2)
+        self.assertEqual(len(child_occurrences), 1)
+
+    def test_shared_dependency_renders_under_each_category_parent(self) -> None:
+        shared = document()
+        shared["tasks"].insert(1, {
+            "id": "00000000-0000-4000-8000-000000000003",
+            "name": "Second parent",
+            "priority": "must",
+            "completed": False,
+            "dependencies": ["00000000-0000-4000-8000-000000000002"],
+        })
+        shared["category_memberships"][0]["tasks"].insert(
+            1, "00000000-0000-4000-8000-000000000003"
+        )
+        rendered = render_document(
+            shared, list(self.validator.priority_policy.order)
+        )["work.md"]
+        self.assertEqual(rendered.content.count("Shared dependency"), 2)
+        self.assertNotIn("## Should\n\n- [ ] Shared dependency", rendered.content)
+
+    def test_dependency_is_root_in_category_without_its_parent(self) -> None:
+        split = document()
+        split["categories"].append({"id": "learning", "display_name": "Learning"})
+        split["category_memberships"][0]["tasks"] = [
+            "00000000-0000-4000-8000-000000000001"
+        ]
+        split["category_memberships"].append({
+            "category": "learning",
+            "tasks": ["00000000-0000-4000-8000-000000000002"],
+        })
+        rendered = render_document(
+            split, list(self.validator.priority_policy.order)
+        )
+        self.assertIn("    - [ ] Shared dependency — Should", rendered["work.md"].content)
+        self.assertIn("## Should\n\n- [ ] Shared dependency", rendered["learning.md"].content)
 
     def test_renders_due_metadata_without_task_ids(self) -> None:
         content = render_document(

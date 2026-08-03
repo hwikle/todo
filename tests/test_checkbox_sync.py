@@ -39,10 +39,21 @@ def document() -> TodoList:
                 "completed": False,
                 "dependencies": [],
             },
+            {
+                "id": "00000000-0000-4000-8000-000000000003",
+                "name": "Second parent",
+                "priority": "must",
+                "completed": False,
+                "dependencies": ["00000000-0000-4000-8000-000000000002"],
+            },
         ],
         "categories": [{"id": "work", "display_name": "Work"}],
         "category_memberships": [
-            {"category": "work", "tasks": ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]}
+            {"category": "work", "tasks": [
+                "00000000-0000-4000-8000-000000000001",
+                "00000000-0000-4000-8000-000000000003",
+                "00000000-0000-4000-8000-000000000002",
+            ]}
         ],
     })
 
@@ -79,6 +90,7 @@ class CheckboxSyncTest(unittest.TestCase):
         content = path.read_text().replace(
             "    - [ ] Repeated dependency — Should",
             "    - [x] Repeated dependency — Should",
+            1,
         )
         path.write_text(content)
         result = synchronize_views(self.document, self.rendered, self.views(), str(self.root))

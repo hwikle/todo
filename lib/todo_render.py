@@ -5,6 +5,8 @@ from __future__ import annotations
 import calendar
 import datetime as dt
 from dataclasses import dataclass
+
+from todo_graph import TaskGraph, category_roots
 from todo_model import Priority, Task, TodoList
 
 
@@ -58,7 +60,7 @@ def due_display(task: Task) -> str:
 def render_document(
     document: TodoList, priority_order: list[Priority]
 ) -> dict[str, RenderedMarkdown]:
-    tasks = {task["id"]: task for task in document["tasks"]}
+    graph = TaskGraph(document["tasks"])
     memberships = {
         membership["category"]: membership["tasks"]
         for membership in document["category_memberships"]
@@ -68,20 +70,21 @@ def render_document(
         lines = [f"# {category['display_name']} — {document['date']}", ""]
         occurrences: list[RenderedOccurrence] = []
         member_ids = memberships.get(category["id"], [])
+        root_ids = category_roots(graph, member_ids)
         section_order: list[str] = list(priority_order)
-        if any("priority" not in tasks[task_id] for task_id in member_ids):
+        if any("priority" not in graph.task(task_id) for task_id in root_ids):
             section_order.append("unprioritized")
         for priority in section_order:
             heading = "Unprioritized" if priority == "unprioritized" else priority_label(priority)
             lines.extend([f"## {heading}", ""])
-            for task_id in member_ids:
-                task = tasks[task_id]
+            for task_id in root_ids:
+                task = graph.task(task_id)
                 task_priority = task.get("priority", "unprioritized")
                 if task_priority != priority:
                     continue
                 _render_task(
                     task,
-                    tasks,
+                    graph,
                     lines,
                     occurrences,
                     depth=0,
@@ -104,7 +107,7 @@ def combine_rendered(rendered: dict[str, RenderedMarkdown]) -> str:
 
 def _render_task(
     task: Task,
-    tasks: dict[str, Task],
+    graph: TaskGraph,
     lines: list[str],
     occurrences: list[RenderedOccurrence],
     depth: int,
@@ -128,10 +131,10 @@ def _render_task(
     if "description" in task:
         for description_line in task["description"].splitlines():
             lines.append(f"{continuation}{description_line}")
-    for dependency_id in task["dependencies"]:
+    for dependency_id in graph.dependencies(task["id"]):
         _render_task(
-            tasks[dependency_id],
-            tasks,
+            graph.task(dependency_id),
+            graph,
             lines,
             occurrences,
             depth + 1,
