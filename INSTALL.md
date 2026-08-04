@@ -17,6 +17,16 @@ source activate.sh
 todo --help
 ```
 
+The same installation includes the local browser checklist. Start it with an
+explicit canonical file and open the displayed loopback address:
+
+```text
+todo serve path/to/todo.json
+```
+
+No separate JavaScript toolchain or production web server is required for the
+single-user local workflow.
+
 `activate.sh` changes only the current shell's `PATH`. It does not modify shell
 startup files or install anything globally. Command wrappers select the
 repository-local environment regardless of the current working directory.
@@ -46,6 +56,6 @@ todo schedule status
 The configuration is stored locally in ignored `config/schedule.json`; no time
 or user-specific storage path is embedded in the software. Installation writes
 and loads `~/Library/LaunchAgents/local.daily-todo.plist`. Remove it with
-`todo schedule uninstall`. The ordinary task, list, view, import, and category
-commands neither inspect nor modify scheduler state. The application does not
-send notifications or invoke Codex.
+`todo schedule uninstall`. The ordinary task, list, view, import, category, and
+serve commands neither inspect nor modify scheduler state. The application does
+not send notifications or invoke Codex.

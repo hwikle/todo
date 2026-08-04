@@ -22,6 +22,7 @@ repository history.
 - `todo import` owns conversion from external formats.
 - `todo category` owns future-list category configuration.
 - `todo schedule` owns the optional local `launchd` lifecycle.
+- `todo serve` owns the explicit-file local HTTP adapter and browser checklist.
 - `bin/setup` owns local dependency installation.
 
 Commands must not discover list storage. Data transformations print to stdout
@@ -29,6 +30,12 @@ unless `--output` is explicit, and must not overwrite without `--replace`.
 List creation must remain independent from rendering and scheduling. The
 scheduler adapter may compose those commands using explicit paths but must not
 duplicate their domain logic.
+
+The browser adapter must use the shared application operations, validate every
+prospective canonical document, and write atomically. Browser saves must carry
+a revision token and reject stale writes. Filtering, grouping, contextual
+dependency display, and transient blank lines are view concerns and must not be
+persisted in canonical JSON.
 
 ## Canonical invariants
 

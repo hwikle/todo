@@ -2,8 +2,8 @@
 
 Daily TODO is a local canonical-JSON task system with ID-free Markdown views,
 schema and semantic validation, checkbox synchronization, carry-forward, and an
-optional macOS schedule. Personal list data under `todos/` and `backlog/` is
-ignored by Git.
+editable browser checklist, plus an optional macOS schedule. Personal list data
+under `todos/` and `backlog/` is ignored by Git.
 
 Run `bin/setup`, then either invoke `bin/todo` directly or source `activate.sh`
 to make `todo` available in the current shell. Every data-transforming command
@@ -76,6 +76,35 @@ todo category remove travel
 
 Category configuration changes affect future list creation only; they do not
 rewrite existing canonical documents.
+
+## Browser checklist
+
+Open one explicitly selected canonical list in the local checklist editor:
+
+```text
+todo serve path/to/todo.json
+```
+
+Then visit `http://127.0.0.1:8000`. The command does not search for a list or
+generate Markdown. It edits only the file named on the command line.
+
+The checklist autosaves task names, descriptions, completion state, categories,
+priorities, deadlines, and nesting. Press Enter in a task name to create a new
+sibling, Tab to make it a subtask of the preceding task, Shift+Tab to move it
+out one level, and Shift+Enter to add or focus its description. Blank new lines
+remain local to the browser until named. Category and priority filters can be
+combined; matching tasks are the primary results, while all of their transitive
+dependencies remain visible.
+
+Every save includes the revision originally loaded by the browser. If another
+program changes the JSON file first, autosave stops and reports a conflict
+instead of overwriting that change. Invalid edits likewise remain unsaved and
+display the canonical validation error.
+
+The server listens only on `127.0.0.1` by default. Flask identifies it as a
+development server because this command is intended for a single-user local
+workflow, not deployment on a shared or public network. `--host` and `--port`
+are available when an explicit alternative is needed.
 
 ## Canonical model and validation
 
