@@ -13,6 +13,7 @@ import todo_list_commands
 import todo_schedule_commands
 import todo_task_commands
 import todo_view_commands
+import todo_web_commands
 from todo_parser import TodoArgumentParser
 from todo_schema import CanonicalSchemaBundle, SchemaConfigurationError
 
@@ -24,8 +25,8 @@ def parser(bundle: CanonicalSchemaBundle) -> argparse.ArgumentParser:
     result = TodoArgumentParser(
         prog="todo",
         description=(
-            "Create, organize, validate, and review TODO lists stored as JSON "
-            "with readable Markdown views."
+            "Create, organize, validate, and review TODO lists from the command "
+            "line or a local browser."
         ),
     )
     commands = cast(
@@ -40,6 +41,7 @@ def parser(bundle: CanonicalSchemaBundle) -> argparse.ArgumentParser:
     todo_category_commands.configure(commands)
     todo_import_commands.configure(commands)
     todo_schedule_commands.configure(commands)
+    todo_web_commands.configure(commands)
     return result
 
 
@@ -57,6 +59,8 @@ def main() -> int:
             return todo_category_commands.run(args)
         if args.command == "import":
             return todo_import_commands.run(args, bundle)
+        if args.command == "serve":
+            return todo_web_commands.run(args, bundle)
         return todo_schedule_commands.run(args)
     except SchemaConfigurationError as exc:
         print(f"error: {exc}", file=sys.stderr)

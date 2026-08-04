@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TODO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='todo.css') }}">
+  </head>
+  <body>
+    <main id="todo-app" aria-busy="true">
+      <header class="toolbar">
+        <div class="filter-row" id="category-filters"><span>Category</span></div>
+        <div class="filter-row" id="priority-filters"><span>Priority</span></div>
+        <label class="grouping">Group
+          <select id="grouping">
+            <option value="category">Category</option>
+            <option value="priority">Priority</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+        <output id="save-status" aria-live="polite">Loading…</output>
+      </header>
+      <p id="message" role="alert" hidden></p>
+      <section id="checklist" aria-label="TODO checklist"></section>
+      <p class="keyboard-help">Enter adds a task · Tab and Shift+Tab change nesting · Shift+Enter adds a description</p>
+    </main>
+    <script src="{{ url_for('static', filename='todo.js') }}"></script>
+  </body>
+</html>

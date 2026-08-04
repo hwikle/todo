@@ -1,0 +1,66 @@
+:root {
+  color-scheme: light dark;
+  --page: light-dark(#fafaf7, #151714);
+  --text: light-dark(#20231f, #edf0ea);
+  --muted: light-dark(#686f67, #aeb5ad);
+  --line: light-dark(#d9ddd6, #3b4139);
+  --soft: light-dark(#eff1ec, #222620);
+  --selected: light-dark(#29432f, #d9eadc);
+  --selected-text: light-dark(#fff, #18201a);
+  --danger: light-dark(#982e2e, #ffaaa2);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--page);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); }
+button, input, select { font: inherit; color: inherit; }
+button, select, input { outline-offset: 2px; }
+
+#todo-app { max-width: 1040px; margin: 0 auto; padding: 20px 28px 36px; }
+.toolbar { display: grid; grid-template-columns: 1fr auto; gap: 9px 20px; align-items: center; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
+.filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.filter-row > span { width: 64px; color: var(--muted); }
+.filter-chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; background: transparent; cursor: pointer; }
+.filter-chip[aria-pressed="true"] { border-color: var(--selected); background: var(--selected); color: var(--selected-text); }
+.grouping { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 7px; color: var(--muted); }
+.grouping select { border: 1px solid var(--line); border-radius: 6px; background: var(--soft); padding: 5px 8px; }
+#save-status { grid-column: 2; grid-row: 2; color: var(--muted); text-align: right; }
+#message { margin: 12px 0 0; color: var(--danger); }
+
+.check-group { padding-top: 22px; }
+.group-title { margin: 0 0 10px; font-size: 1.35rem; font-weight: 500; }
+.priority-title { margin: 16px 0 5px; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 500; }
+.branch { display: block; }
+.task-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 6px; align-items: start; min-height: 29px; padding: 2px 0; }
+.task-row.contextual { opacity: .72; }
+.task-check { appearance: none; width: 18px; height: 18px; margin: 4px 0 0; border: 1.5px solid var(--muted); border-radius: 5px; cursor: pointer; display: grid; place-items: center; }
+.task-check:checked { background: var(--selected); border-color: var(--selected); }
+.task-check:checked::after { content: "✓"; color: var(--selected-text); font-size: 12px; }
+.task-fields { min-width: 0; }
+.task-name, .task-description { display: block; width: 100%; border: 0; border-radius: 3px; padding: 3px 2px; background: transparent; }
+.task-name { font-weight: 500; }
+.task-description { color: var(--muted); }
+.task-name:focus, .task-description:focus { background: var(--soft); }
+.task-meta { display: flex; gap: 7px; align-items: center; min-height: 25px; color: var(--muted); white-space: nowrap; }
+.due.hard { color: var(--danger); font-weight: 500; }
+.task-menu { position: relative; }
+.menu-toggle { opacity: 0; border: 0; padding: 1px 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.task-row:hover .menu-toggle, .task-row:focus-within .menu-toggle, .menu-toggle[aria-expanded="true"] { opacity: 1; }
+.menu-panel { position: absolute; z-index: 20; top: 25px; right: 0; width: min(310px, 88vw); display: grid; gap: 9px; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--page); box-shadow: 0 12px 30px light-dark(#24301f22, #00000070); }
+.menu-panel[hidden] { display: none; }
+.menu-panel label { display: grid; gap: 3px; color: var(--muted); }
+.menu-panel input, .menu-panel select { width: 100%; border: 1px solid var(--line); border-radius: 5px; padding: 6px; background: var(--soft); }
+.remove-task { width: fit-content; border: 0; padding: 3px 0; background: transparent; color: var(--danger); cursor: pointer; }
+.children { margin-left: 28px; }
+.empty { color: var(--muted); padding: 22px 0; }
+.keyboard-help { color: var(--muted); margin: 17px 0 0; }
+
+@media (max-width: 650px) {
+  #todo-app { padding: 14px 12px 28px; }
+  .toolbar { grid-template-columns: 1fr; }
+  .grouping, #save-status { grid-column: 1; grid-row: auto; text-align: left; }
+  .task-row { grid-template-columns: 25px minmax(0, 1fr); }
+  .task-meta { grid-column: 2; }
+}
