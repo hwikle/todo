@@ -11,7 +11,7 @@ repository history.
 - Only checkbox markers may be edited in generated Markdown.
 - Synchronization must reject structural edits and conflicting repeated states.
 - Priority and deadline-kind values come from canonical schemas.
-- Category configuration lives in `config/task-types.conf`.
+- Each canonical list's `categories` array is the only category source of truth.
 - Machine-local scheduling configuration lives in ignored `config/schedule.json`.
 
 ## Command boundaries
@@ -20,7 +20,6 @@ repository history.
 - `todo list` owns list creation and validation.
 - `todo view` owns Markdown rendering and checkbox synchronization.
 - `todo import` owns conversion from external formats.
-- `todo category` owns future-list category configuration.
 - `todo schedule` owns the optional local `launchd` lifecycle.
 - `todo serve` owns the explicit-file local HTTP adapter and browser checklist.
 - `bin/setup` owns local dependency installation.
@@ -37,9 +36,14 @@ a revision token and reject stale writes. Filtering, grouping, contextual
 dependency display, and transient blank lines are view concerns and must not be
 persisted in canonical JSON.
 
+The browser owns in-list category management, ordering and deadline-sort views,
+and display-only inline-code formatting. Sorting must not rewrite manual order;
+partial deadlines retain their original precision in storage.
+
 The browser must remain independently usable: an explicitly named missing list
 path enters a first-run state and is created only after an explicit browser
-action. Empty categories must expose an in-place first-task line. Client-side
+action with explicit categories. Empty categories must expose an in-place
+first-task line. Client-side
 identity, focus restoration, edits, nesting, and deletion must use canonical
 task IDs and occurrence context, never task names or whole-document ID-set
 inference.

@@ -41,14 +41,16 @@ Priority choices come from `schema/priority.schema.json`.
 Create and validate lists:
 
 ```text
-todo list create --date 2026-08-03
+todo list create --date 2026-08-03 --category work=Work --category learning=Learning
 todo list create --date 2026-08-03 --previous prior.json --output next.json
 todo list validate todo.json
 todo list validate --strict path/to/lists
 ```
 
-`todo list create` carries incomplete tasks from an explicitly supplied prior
-list. It does not render Markdown or inspect a scheduler.
+`todo list create` carries incomplete tasks and categories from an explicitly
+supplied prior list. A first list instead requires one or more explicit
+`--category ID=NAME` arguments. It does not render Markdown or inspect a
+scheduler.
 
 Render and synchronize ID-free Markdown views:
 
@@ -64,18 +66,11 @@ Only checkbox markers may be edited in generated category views. Structural
 edits and conflicting states across repeated task appearances fail. Combined
 Markdown is presentation-only and cannot be synchronized.
 
-Import legacy Markdown, and manage category configuration:
+Import legacy Markdown:
 
 ```text
 todo import markdown path/to/dated-markdown
-todo category list
-todo category add travel "Travel"
-todo category rename travel "Trips and Travel"
-todo category remove travel
 ```
-
-Category configuration changes affect future list creation only; they do not
-rewrite existing canonical documents.
 
 ## Browser checklist
 
@@ -86,19 +81,28 @@ todo serve path/to/todo.json
 ```
 
 Then visit `http://127.0.0.1:8000`. If the file does not exist, the browser
-offers to create today's list with the configured categories; no CLI creation
-step is required. Starting the server alone does not create the file. The
+asks for the date and initial categories; no CLI creation step is required.
+Starting the server alone does not create the file. The
 command does not search for a list or generate Markdown, and it edits only the
 explicit path named on the command line.
 
 The checklist autosaves task names, descriptions, completion state, categories,
-priorities, deadlines, and nesting. Press Enter in a task name to create a new
+priorities, deadlines, ordering, and nesting. Press Enter in a task name to create a new
 sibling, Tab to make it a subtask of the preceding task, Shift+Tab to move it
-out one level, and Shift+Enter to add or focus its description. Empty categories
+out one level, Shift+Enter to add or focus its description, and Option+Up or
+Option+Down to reorder it in manual sort mode. Empty categories
 contain a blank editable line for their first task. Blank new lines remain local
-to the browser until named. Category and priority filters can be combined;
+to the browser until named. Categories can be added, renamed, reordered, and
+removed from the checklist; a category must be empty before removal. Category
+and priority filters can be combined;
 matching tasks are the primary results, while all of their transitive
 dependencies remain visible.
+
+Task priority is visible alongside each task. Deadlines use an explicit year,
+month, or day precision; time is available only for day-precision deadlines.
+Sorting by deadline leaves undated tasks last and treats a partial deadline as
+the end of its stated period without changing the stored precision. Text inside
+backticks is displayed in monospace and remains editable as ordinary text.
 
 Distinct tasks may have the same name. The editor identifies them by their
 canonical IDs internally, so editing or deleting one does not select another by
@@ -143,6 +147,8 @@ todo schedule uninstall
 
 The launchd job computes explicit current- and previous-day paths, creates
 canonical JSON, and then renders category views as a separate operation.
+The first scheduled run therefore requires an existing prior list; create the
+initial list explicitly in the browser or with `todo list create --category`.
 Notification delivery and Codex integration are deliberately outside this
 program's responsibilities. Installation writes and loads
 `~/Library/LaunchAgents/local.daily-todo.plist`. Use `--replace` when replacing

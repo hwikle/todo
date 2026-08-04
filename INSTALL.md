@@ -25,7 +25,8 @@ todo serve path/to/todo.json
 ```
 
 The path may be new. In that case, create the list from the browser's first-run
-screen; running a separate CLI creation command is not required.
+screen and supply its initial categories; running a separate CLI creation
+command is not required.
 
 No separate JavaScript toolchain or production web server is required for the
 single-user local workflow.
@@ -59,6 +60,6 @@ todo schedule status
 The configuration is stored locally in ignored `config/schedule.json`; no time
 or user-specific storage path is embedded in the software. Installation writes
 and loads `~/Library/LaunchAgents/local.daily-todo.plist`. Remove it with
-`todo schedule uninstall`. The ordinary task, list, view, import, category, and
+`todo schedule uninstall`. The ordinary task, list, view, import, and
 serve commands neither inspect nor modify scheduler state. The application does
 not send notifications or invoke Codex.
