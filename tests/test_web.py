@@ -71,7 +71,13 @@ class WebAdapterTest(unittest.TestCase):
         self.assertEqual(initial.status_code, 200)
         self.assertFalse(initial.get_json()["exists"])
         self.assertFalse(missing.exists())
-        created = client.post("/api/todo", json={"date": "2042-03-04"})
+        created = client.post(
+            "/api/todo",
+            json={
+                "date": "2042-03-04",
+                "categories": [{"id": "work", "display_name": "Work"}],
+            },
+        )
         self.assertEqual(created.status_code, 200, created.get_json())
         self.assertTrue(created.get_json()["exists"])
         self.assertEqual(json.loads(missing.read_text())["date"], "2042-03-04")
@@ -83,7 +89,13 @@ class WebAdapterTest(unittest.TestCase):
         client = app.test_client()
         missing.write_text(json.dumps(document(), indent=2) + "\n")
         before = missing.read_bytes()
-        response = client.post("/api/todo", json={"date": "2042-03-04"})
+        response = client.post(
+            "/api/todo",
+            json={
+                "date": "2042-03-04",
+                "categories": [{"id": "work", "display_name": "Work"}],
+            },
+        )
         self.assertEqual(response.status_code, 409)
         self.assertEqual(missing.read_bytes(), before)
 
@@ -162,6 +174,22 @@ class WebAdapterTest(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.get_json()["code"], "revision_conflict")
+
+    def test_category_reorder_and_removal_routes(self) -> None:
+        payload = self.snapshot()
+        added = self.client.post(
+            "/api/categories",
+            json={"revision": payload["revision"], "id": "learning", "display_name": "Learning"},
+        ).get_json()
+        moved = self.client.patch(
+            "/api/categories/learning",
+            json={"revision": added["revision"], "offset": -1},
+        ).get_json()
+        self.assertEqual(moved["document"]["categories"][0]["id"], "learning")
+        removed = self.client.delete(
+            "/api/categories/learning", json={"revision": moved["revision"]}
+        )
+        self.assertEqual(removed.status_code, 200, removed.get_json())
 
 
 if __name__ == "__main__":

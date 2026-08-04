@@ -8,7 +8,6 @@ from typing import Any, Optional, cast
 from flask import Flask, Response, jsonify, render_template, request
 
 from todo_model import DeadlineKind, DueDate, Priority
-from todo_repository import configured_daily_categories
 from todo_schema import CanonicalSchemaBundle
 from todo_web_application import (
     RevisionConflict,
@@ -28,8 +27,7 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
         template_folder=str(ROOT / "templates"),
         static_folder=str(ROOT / "static"),
     )
-    categories = configured_daily_categories(ROOT / "config" / "task-types.conf")
-    service = TodoWebApplication(path, bundle, categories)
+    service = TodoWebApplication(path, bundle)
     if service.exists():
         service.load()
 
@@ -70,7 +68,10 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
     @app.post("/api/todo")
     def create_todo() -> Response:
         data = _object_payload()
-        return response_for(service.create(_text(data, "date")))
+        categories = data.get("categories")
+        if not isinstance(categories, list) or not all(isinstance(item, dict) for item in categories):
+            raise WebEditError("categories must be a list of category objects")
+        return response_for(service.create(_text(data, "date"), cast(Any, categories)))
 
     @app.post("/api/tasks")
     def add_task() -> Response:
@@ -131,11 +132,57 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
         )
         return response_for(snapshot)
 
+    @app.post("/api/tasks/<task_id>/reorder")
+    def reorder_task(task_id: str) -> Response:
+        data = _object_payload()
+        offset = data.get("offset")
+        if not isinstance(offset, int) or offset not in {-1, 1}:
+            raise WebEditError("offset must be -1 or 1")
+        return response_for(service.reorder_task(
+            _text(data, "revision"), task_id,
+            parent_id=_optional_text(data, "parent_id"),
+            category_id=_optional_text(data, "category_id"),
+            offset=offset,
+        ))
+
+    @app.post("/api/tasks/<task_id>/detach")
+    def detach_task(task_id: str) -> Response:
+        data = _object_payload()
+        return response_for(service.detach_task(
+            _text(data, "revision"), task_id, _text(data, "parent_id")
+        ))
+
     @app.delete("/api/tasks/<task_id>")
     def remove_task(task_id: str) -> Response:
         data = _object_payload()
         snapshot = service.remove_task(_text(data, "revision"), task_id)
         return response_for(snapshot)
+
+    @app.post("/api/categories")
+    def add_category() -> Response:
+        data = _object_payload()
+        return response_for(service.add_category(
+            _text(data, "revision"), _text(data, "id"), _text(data, "display_name")
+        ))
+
+    @app.patch("/api/categories/<category_id>")
+    def edit_category(category_id: str) -> Response:
+        data = _object_payload()
+        if "offset" in data:
+            offset = data["offset"]
+            if not isinstance(offset, int) or offset not in {-1, 1}:
+                raise WebEditError("offset must be -1 or 1")
+            snapshot = service.move_category(_text(data, "revision"), category_id, offset)
+        else:
+            snapshot = service.rename_category(
+                _text(data, "revision"), category_id, _text(data, "display_name")
+            )
+        return response_for(snapshot)
+
+    @app.delete("/api/categories/<category_id>")
+    def remove_category(category_id: str) -> Response:
+        data = _object_payload()
+        return response_for(service.remove_category(_text(data, "revision"), category_id))
 
     return app
 

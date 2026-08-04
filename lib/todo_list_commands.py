@@ -6,14 +6,14 @@ import argparse
 import datetime as dt
 import json
 from pathlib import Path
+import re
 import sys
 from typing import cast
 
 from todo_cli import print_issues
 from todo_generation import GenerationError, generate_document
 from todo_io import emit_text, load_json
-from todo_model import TodoList
-from todo_repository import RepositoryError, configured_daily_categories
+from todo_model import Category, TodoList
 from todo_schema import CanonicalSchemaBundle
 from todo_validation import Issue
 
@@ -40,6 +40,10 @@ def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
     create.add_argument(
         "--previous", type=Path, metavar="FILE",
         help="canonical earlier list whose unfinished tasks should carry forward",
+    )
+    create.add_argument(
+        "--category", action="append", default=[], metavar="ID=NAME",
+        help="starting category for a list without --previous; repeat as needed",
     )
     create.add_argument(
         "--output", type=Path, metavar="FILE",
@@ -87,7 +91,11 @@ def run(args: argparse.Namespace, bundle: CanonicalSchemaBundle) -> int:
                 return 1
             if previous["date"] >= target_date:
                 raise GenerationError("previous list must predate the target date")
-        categories = configured_daily_categories(ROOT / "config" / "task-types.conf")
+        if previous is not None and args.category:
+            raise GenerationError("--category cannot be combined with --previous")
+        categories = _categories(args.category)
+        if previous is None and not categories:
+            raise GenerationError("a first list requires at least one --category ID=NAME")
         document = generate_document(target_date, previous, categories)
         issues = bundle_issues(bundle, document)
         if print_issues(issues, args.strict):
@@ -98,9 +106,23 @@ def run(args: argparse.Namespace, bundle: CanonicalSchemaBundle) -> int:
             args.replace,
         )
         return 0
-    except (OSError, json.JSONDecodeError, ValueError, GenerationError, RepositoryError) as exc:
+    except (OSError, json.JSONDecodeError, ValueError, GenerationError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+
+def _categories(values: list[str]) -> list[Category]:
+    categories: list[Category] = []
+    for value in values:
+        category_id, separator, display_name = value.partition("=")
+        if not separator or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", category_id):
+            raise GenerationError(f"invalid category {value!r}; expected ID=NAME")
+        if not display_name.strip():
+            raise GenerationError(f"invalid category {value!r}; name cannot be empty")
+        categories.append({"id": category_id, "display_name": display_name.strip()})
+    if len({category["id"] for category in categories}) != len(categories):
+        raise GenerationError("starting category IDs must be unique")
+    return categories
 
 
 def bundle_issues(bundle: CanonicalSchemaBundle, document: object) -> list[Issue]:

@@ -21,6 +21,7 @@ class IndependentGenerationTest(unittest.TestCase):
                     str(ROOT / "bin" / "todo"), "list", "create",
                     "--date",
                     "2042-01-02",
+                    "--category", "work=Work",
                     "--output", str(output),
                 ],
                 cwd=ROOT,
@@ -39,6 +40,7 @@ class IndependentGenerationTest(unittest.TestCase):
                 str(ROOT / "bin" / "todo"), "list", "create",
                 "--date",
                 "2042-01-02",
+                "--category", "work=Work",
                 "--output", str(target),
             ]
             first = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)

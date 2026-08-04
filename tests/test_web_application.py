@@ -79,14 +79,15 @@ class WebApplicationTest(unittest.TestCase):
         service = TodoWebApplication(
             missing,
             self.bundle,
-            [{"id": "work", "display_name": "Work"}],
         )
         self.assertFalse(service.exists())
-        created = service.create("2042-02-03")
+        created = service.create(
+            "2042-02-03", [{"id": "work", "display_name": "Work"}]
+        )
         self.assertEqual(created.document["date"], "2042-02-03")
         self.assertEqual(created.document["categories"][0]["id"], "work")
         with self.assertRaises(RevisionConflict):
-            service.create("2042-02-03")
+            service.create("2042-02-03", [{"id": "work", "display_name": "Work"}])
 
     def test_identical_names_remain_independent_by_id(self) -> None:
         initial = self.service.load()
@@ -162,6 +163,40 @@ class WebApplicationTest(unittest.TestCase):
         task = result.document["tasks"][0]
         self.assertEqual(task["description"], "Details")
         self.assertNotIn("priority", task)
+
+    def test_reorders_and_detaches_tasks_by_identity(self) -> None:
+        initial = self.service.load()
+        reordered = self.service.reorder_task(
+            initial.revision, SIBLING, parent_id=None, category_id="work", offset=-1
+        )
+        self.assertEqual(
+            reordered.document["category_memberships"][0]["tasks"],
+            [SIBLING, PARENT],
+        )
+        nested = self.service.move_task(
+            reordered.revision,
+            SIBLING,
+            old_parent_id=None,
+            new_parent_id=PARENT,
+            after_id=None,
+            context_category="work",
+        )
+        self.assertEqual(nested.document["tasks"][0]["dependencies"], [SIBLING])
+        detached = self.service.detach_task(nested.revision, SIBLING, PARENT)
+        self.assertEqual(detached.document["tasks"][0]["dependencies"], [])
+
+    def test_categories_are_managed_inside_the_list(self) -> None:
+        initial = self.service.load()
+        added = self.service.add_category(initial.revision, "learning", "Learning")
+        self.assertEqual([item["id"] for item in added.document["categories"]], ["work", "learning"])
+        renamed = self.service.rename_category(added.revision, "learning", "Study")
+        self.assertEqual(renamed.document["categories"][1]["display_name"], "Study")
+        moved = self.service.move_category(renamed.revision, "learning", -1)
+        self.assertEqual([item["id"] for item in moved.document["categories"]], ["learning", "work"])
+        removed = self.service.remove_category(moved.revision, "learning")
+        self.assertEqual([item["id"] for item in removed.document["categories"]], ["work"])
+        with self.assertRaises(WebEditError):
+            self.service.remove_category(removed.revision, "work")
 
 
 if __name__ == "__main__":

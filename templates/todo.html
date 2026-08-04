@@ -13,7 +13,8 @@
         <p>This file does not exist yet. Create it to begin editing.</p>
         <form id="create-list-form">
           <label>Date<input id="list-date" type="date" required></label>
-          <div><span>Categories</span><ul id="creation-categories"></ul></div>
+          <div><span>Categories</span><div id="creation-categories"></div></div>
+          <button id="add-creation-category" type="button">Add category</button>
           <button type="submit">Create list</button>
         </form>
       </section>
@@ -28,12 +29,33 @@
               <option value="none">None</option>
             </select>
           </label>
+          <label class="sorting">Sort
+            <select id="sorting">
+              <option value="manual">Manual</option>
+              <option value="due-asc">Due date: earliest</option>
+              <option value="due-desc">Due date: latest</option>
+            </select>
+          </label>
+          <button id="manage-categories" type="button">Categories…</button>
           <output id="save-status" aria-live="polite">Loading…</output>
         </header>
         <section id="checklist" aria-label="TODO checklist"></section>
-        <p class="keyboard-help">Enter adds a task · Tab and Shift+Tab change nesting · Shift+Enter adds a description</p>
+        <p class="keyboard-help">Enter adds a task · Tab and Shift+Tab change nesting · Shift+Enter adds a description · Option+Up and Option+Down reorder</p>
       </section>
       <p id="message" role="alert" hidden></p>
+      <dialog id="category-dialog">
+        <form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form>
+        <h2>Categories</h2><div id="category-editor"></div>
+        <button id="add-list-category" type="button">Add category</button>
+      </dialog>
+      <dialog id="delete-dialog">
+        <h2>Remove task</h2><p id="delete-context"></p>
+        <div class="dialog-actions">
+          <button id="detach-task" type="button">Remove from this parent</button>
+          <button id="confirm-delete-task" type="button">Delete task</button>
+          <button id="cancel-delete" type="button">Cancel</button>
+        </div>
+      </dialog>
     </main>
     <script src="{{ url_for('static', filename='todo.js') }}"></script>
   </body>

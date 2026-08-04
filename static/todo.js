@@ -7,10 +7,21 @@
   const createListForm = document.getElementById("create-list-form");
   const listDate = document.getElementById("list-date");
   const creationCategories = document.getElementById("creation-categories");
+  const addCreationCategory = document.getElementById("add-creation-category");
   const checklist = document.getElementById("checklist");
   const categoryFilters = document.getElementById("category-filters");
   const priorityFilters = document.getElementById("priority-filters");
   const grouping = document.getElementById("grouping");
+  const sorting = document.getElementById("sorting");
+  const manageCategories = document.getElementById("manage-categories");
+  const categoryDialog = document.getElementById("category-dialog");
+  const categoryEditor = document.getElementById("category-editor");
+  const addListCategory = document.getElementById("add-list-category");
+  const deleteDialog = document.getElementById("delete-dialog");
+  const deleteContext = document.getElementById("delete-context");
+  const detachTaskButton = document.getElementById("detach-task");
+  const confirmDeleteTask = document.getElementById("confirm-delete-task");
+  const cancelDelete = document.getElementById("cancel-delete");
   const saveStatus = document.getElementById("save-status");
   const message = document.getElementById("message");
   let documentState;
@@ -22,10 +33,17 @@
   const selectedPriorities = new Set();
   const openDescriptions = new Set();
   const timers = new Map();
+  let pendingDeletion = null;
 
   const escapeHtml = value => String(value).replace(/[&<>"]/g, character => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"
   })[character]);
+
+  function inlineMarkup(value) {
+    return String(value).split("`").map((part, index) =>
+      index % 2 ? `<code>${escapeHtml(part)}</code>` : escapeHtml(part)
+    ).join("");
+  }
 
   function taskMap() { return new Map(documentState.tasks.map(task => [task.id, task])); }
   function categoryMap() { return new Map(documentState.categories.map(category => [category.id, category])); }
@@ -67,6 +85,38 @@
     const values = [task.due.year, task.due.month, task.due.day].filter(value => value !== undefined);
     return values.map((value, index) => index ? String(value).padStart(2, "0") : value).join("-") + (task.due.time ? ` ${task.due.time}` : "");
   }
+  function duePrecision(task) {
+    if (!task.due) return "none";
+    if (task.due.day !== undefined) return "day";
+    if (task.due.month !== undefined) return "month";
+    return "year";
+  }
+  function dueInput(task) {
+    const precision = duePrecision(task);
+    const value = dueText(task).split(" ")[0];
+    if (precision === "year") return `<input data-field="due-value" type="number" min="1" max="9999" value="${escapeHtml(value)}" placeholder="YYYY">`;
+    if (precision === "month") return `<input data-field="due-value" type="month" value="${escapeHtml(value)}">`;
+    if (precision === "day") return `<input data-field="due-value" type="date" value="${escapeHtml(value)}">`;
+    return `<input data-field="due-value" type="text" value="" disabled aria-label="No due date">`;
+  }
+  function effectiveDue(task) {
+    if (!task.due) return null;
+    const year = task.due.year;
+    const month = task.due.month || 12;
+    const day = task.due.day || new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const [hour, minute] = task.due.time ? task.due.time.split(":").map(Number) : [23, 59];
+    return Date.UTC(year, month - 1, day, hour, minute);
+  }
+  function sortedIds(ids, tasks) {
+    if (sorting.value === "manual") return [...ids];
+    const direction = sorting.value === "due-asc" ? 1 : -1;
+    return [...ids].map((id, index) => ({id, index, due: effectiveDue(tasks.get(id))})).sort((left, right) => {
+      if (left.due === null && right.due === null) return left.index - right.index;
+      if (left.due === null) return 1;
+      if (right.due === null) return -1;
+      return direction * (left.due - right.due) || left.index - right.index;
+    }).map(item => item.id);
+  }
   function renderBranch(id, parentId, contextCategory, primary, visible, tasks, seen = new Set()) {
     if (!visible.has(id) || seen.has(id)) return "";
     const task = tasks.get(id);
@@ -79,23 +129,28 @@
       <div class="task-row ${primary.has(id) ? "" : "contextual"}" data-id="${id}" data-parent="${parentId || ""}" data-category="${contextCategory || categories[0] || ""}">
         <input class="task-check" type="checkbox" aria-label="Mark ${escapeHtml(task.name || "new task")} complete" ${task.completed ? "checked" : ""} ${draft ? "disabled" : ""}>
         <div class="task-fields">
-          <input class="task-name" value="${escapeHtml(task.name)}" placeholder="New task" aria-label="Task name">
-          ${descriptionShown ? `<input class="task-description" value="${escapeHtml(task.description || "")}" placeholder="Description" aria-label="Task description">` : ""}
+          <button type="button" class="task-rendered task-name-rendered" ${draft ? "hidden" : ""} aria-label="Edit task name">${inlineMarkup(task.name)}</button>
+          <input class="task-name" value="${escapeHtml(task.name)}" placeholder="New task" aria-label="Task name" ${draft ? "" : "hidden"}>
+          ${descriptionShown ? `<button type="button" class="task-rendered task-description-rendered" aria-label="Edit task description">${inlineMarkup(task.description || "Description")}</button><input class="task-description" value="${escapeHtml(task.description || "")}" placeholder="Description" aria-label="Task description" hidden>` : ""}
         </div>
-        ${draft ? `<div class="task-meta"></div>` : `<div class="task-meta">${task.due ? `<span class="due ${task.deadline_kind || ""}">${escapeHtml(dueText(task))}</span>` : ""}
+        ${draft ? `<div class="task-meta"></div>` : `<div class="task-meta">${grouping.value !== "priority" ? `<span class="priority-indicator">${escapeHtml(task.priority ? task.priority[0].toUpperCase() + task.priority.slice(1) : "Unprioritized")}</span>` : ""}${task.due ? `<span class="due ${task.deadline_kind || ""}">${escapeHtml(dueText(task))}</span>` : ""}
           <div class="task-menu"><button class="menu-toggle" type="button" aria-label="Task options" aria-expanded="false">···</button>
             <div class="menu-panel" hidden>
               <label>Priority<select data-field="priority">${priorityOptions}</select></label>
               <label>Categories<select data-field="categories" multiple>${categoryOptions(categories)}</select></label>
-              <label>Due date<input data-field="due" value="${escapeHtml(dueText(task).split(" ")[0])}" placeholder="YYYY, YYYY-MM, or YYYY-MM-DD"></label>
-              <label>Due time<input data-field="due-time" value="${escapeHtml(task.due?.time || "")}" placeholder="HH:MM"></label>
-              <label>Deadline<select data-field="deadline-kind"><option value="">None</option><option value="hard" ${task.deadline_kind === "hard" ? "selected" : ""}>Hard</option><option value="soft" ${task.deadline_kind === "soft" ? "selected" : ""}>Soft</option></select></label>
+              <fieldset class="due-controls">
+                <legend>Deadline</legend>
+                <label>Precision<select data-field="due-precision"><option value="none" ${!task.due ? "selected" : ""}>No deadline</option><option value="year" ${duePrecision(task) === "year" ? "selected" : ""}>Year</option><option value="month" ${duePrecision(task) === "month" ? "selected" : ""}>Month</option><option value="day" ${duePrecision(task) === "day" ? "selected" : ""}>Day</option></select></label>
+                <label class="due-value-label">Date${dueInput(task)}</label>
+                <label class="due-time-label" ${duePrecision(task) === "day" ? "" : "hidden"}>Time (optional)<input data-field="due-time" type="time" value="${escapeHtml(task.due?.time || "")}"></label>
+                <label class="deadline-kind-label" ${task.due ? "" : "hidden"}>Kind<select data-field="deadline-kind"><option value="soft" ${task.deadline_kind === "soft" ? "selected" : ""}>Soft</option><option value="hard" ${task.deadline_kind === "hard" ? "selected" : ""}>Hard</option></select></label>
+              </fieldset>
               <button class="remove-task" type="button">Remove task</button>
             </div>
           </div>
         </div>`}
       </div>
-      <div class="children">${task.dependencies.map(child => renderBranch(child, id, contextCategory, primary, visible, tasks, nextSeen)).join("")}</div>
+      <div class="children">${sortedIds(task.dependencies, tasks).map(child => renderBranch(child, id, contextCategory, primary, visible, tasks, nextSeen)).join("")}</div>
     </div>`;
   }
   function renderEmptyCategory(categoryId) {
@@ -115,15 +170,15 @@
         if (selectedCategories.size && !selectedCategories.has(category.id)) continue;
         const membership = documentState.category_memberships.find(item => item.category === category.id);
         const candidates = (membership?.tasks || []).filter(id => primary.has(id));
-        groups.push([category.display_name, roots(candidates, tasks), category.id]);
+        groups.push([category.display_name, sortedIds(roots(candidates, tasks), tasks), category.id]);
       }
     } else if (grouping.value === "priority") {
       for (const priority of [...priorities, ""]) {
         const candidates = [...primary].filter(id => (tasks.get(id).priority || "") === priority);
-        if (candidates.length) groups.push([priority ? priority[0].toUpperCase() + priority.slice(1) : "Unprioritized", roots(candidates, tasks), null]);
+        if (candidates.length) groups.push([priority ? priority[0].toUpperCase() + priority.slice(1) : "Unprioritized", sortedIds(roots(candidates, tasks), tasks), null]);
       }
     } else {
-      groups.push(["", roots(primary, tasks), null]);
+      groups.push(["", sortedIds(roots(primary, tasks), tasks), null]);
     }
     checklist.innerHTML = groups.length ? groups.map(([label, ids, category]) => `<section class="check-group">${label ? `<h2 class="group-title">${escapeHtml(label)}</h2>` : ""}${ids.length ? ids.map(id => renderBranch(id, null, category, primary, visible, tasks)).join("") : category ? renderEmptyCategory(category) : `<p class="empty">No tasks match these filters.</p>`}</section>`).join("") : `<p class="empty">No tasks match these filters.</p>`;
     if (focusRequest) {
@@ -145,6 +200,14 @@
     priorityFilters.querySelectorAll("button").forEach(button => button.remove());
     for (const priority of priorities) priorityFilters.insertAdjacentHTML("beforeend", `<button class="filter-chip" type="button" data-value="${escapeHtml(priority)}" aria-pressed="false">${escapeHtml(priority[0].toUpperCase() + priority.slice(1))}</button>`);
     priorityFilters.insertAdjacentHTML("beforeend", `<button class="filter-chip" type="button" data-value="" aria-pressed="false">Unprioritized</button>`);
+  }
+  function renderCategoryEditor() {
+    categoryEditor.innerHTML = documentState.categories.map(category => `<div class="category-editor-row" data-id="${escapeHtml(category.id)}">
+      <input value="${escapeHtml(category.display_name)}" aria-label="Category name">
+      <button type="button" data-action="up" aria-label="Move ${escapeHtml(category.display_name)} up">↑</button>
+      <button type="button" data-action="down" aria-label="Move ${escapeHtml(category.display_name)} down">↓</button>
+      <button type="button" data-action="remove" aria-label="Remove ${escapeHtml(category.display_name)}">×</button>
+    </div>`).join("");
   }
   function showError(error) {
     if (error.code === "task_required" && error.details?.blockers && documentState) {
@@ -223,18 +286,32 @@
     document.querySelectorAll(".menu-toggle").forEach(button => { if (!except || button.nextElementSibling !== except) button.setAttribute("aria-expanded", "false"); });
   }
   function parseDue(row) {
-    const raw = row.querySelector('[data-field="due"]').value.trim();
+    const precision = row.querySelector('[data-field="due-precision"]').value;
+    if (precision === "none") return {due: null, deadline_kind: null};
+    const raw = row.querySelector('[data-field="due-value"]').value.trim();
     const time = row.querySelector('[data-field="due-time"]').value.trim();
-    const kind = row.querySelector('[data-field="deadline-kind"]').value || null;
-    if (!raw) return {due: null, deadline_kind: null};
+    const kind = row.querySelector('[data-field="deadline-kind"]').value;
+    if (!raw) throw new Error(`Choose a ${precision} for the deadline.`);
     const parts = raw.split("-").map(Number);
-    if (!parts.length || parts.some(Number.isNaN) || parts.length > 3) throw new Error("Use YYYY, YYYY-MM, or YYYY-MM-DD for the due date");
+    const expectedParts = {year: 1, month: 2, day: 3}[precision];
+    if (parts.length !== expectedParts || parts.some(Number.isNaN)) throw new Error(`Choose a valid ${precision}.`);
     const due = {year: parts[0]};
     if (parts[1] !== undefined) due.month = parts[1];
     if (parts[2] !== undefined) due.day = parts[2];
-    if (time) due.time = time;
-    if (!kind) throw new Error("Choose hard or soft when setting a due date");
+    if (precision === "day" && time) due.time = time;
     return {due, deadline_kind: kind};
+  }
+
+  function configureDueControls(row) {
+    const precision = row.querySelector('[data-field="due-precision"]').value;
+    const label = row.querySelector(".due-value-label");
+    const previous = label.querySelector('[data-field="due-value"]')?.value || "";
+    const types = {none: "text", year: "number", month: "month", day: "date"};
+    label.innerHTML = `Date<input data-field="due-value" type="${types[precision]}" ${precision === "year" ? 'min="1" max="9999" placeholder="YYYY"' : ""} ${precision === "none" ? "disabled" : ""}>`;
+    const input = label.querySelector('[data-field="due-value"]');
+    if (precision !== "none" && previous) input.value = previous;
+    row.querySelector(".due-time-label").hidden = precision !== "day";
+    row.querySelector(".deadline-kind-label").hidden = precision === "none";
   }
   function addSibling(row) {
     const task = taskMap().get(row.dataset.id);
@@ -262,6 +339,51 @@
     const branch = row.closest(".branch");
     return queueSave(() => requestJson(`/api/tasks/${encodeURIComponent(row.dataset.id)}/move`, {method: "POST", body: JSON.stringify({revision, old_parent_id: row.dataset.parent || null, new_parent_id: newParentId, after_id: afterId, context_category: branch.dataset.category || null})}), true);
   }
+  function reorderTask(row, offset) {
+    if (sorting.value !== "manual") { showError(new Error("Switch to manual sorting before reordering tasks.")); return; }
+    const task = taskMap().get(row.dataset.id);
+    if (task._draft) {
+      const siblings = task._parentId
+        ? taskMap().get(task._parentId).dependencies
+        : documentState.category_memberships.find(item => item.category === task._contextCategory).tasks;
+      const index = siblings.indexOf(task.id);
+      const target = Math.max(0, Math.min(siblings.length - 1, index + offset));
+      siblings.splice(index, 1); siblings.splice(target, 0, task.id);
+      focusRequest = {id: task.id, field: "task-name", parentId: task._parentId, category: task._contextCategory};
+      render(); return;
+    }
+    queueSave(() => requestJson(`/api/tasks/${encodeURIComponent(task.id)}/reorder`, {method: "POST", body: JSON.stringify({
+      revision, parent_id: row.dataset.parent || null, category_id: row.dataset.category || null, offset
+    })}), true);
+  }
+  function indentDraft(row) {
+    const task = taskMap().get(row.dataset.id);
+    const branch = row.closest(".branch");
+    const previous = branch.previousElementSibling;
+    if (!previous?.matches(".branch")) return;
+    const newParent = taskMap().get(previous.dataset.id);
+    if (newParent._draft) { showError(new Error("Name the preceding task before nesting beneath it.")); return; }
+    if (task._parentId) taskMap().get(task._parentId).dependencies = taskMap().get(task._parentId).dependencies.filter(id => id !== task.id);
+    task._parentId = newParent.id; task._afterId = null;
+    if (!newParent.dependencies.includes(task.id)) newParent.dependencies.push(task.id);
+    focusRequest = {id: task.id, field: "task-name", parentId: newParent.id, category: task._contextCategory};
+    render();
+  }
+  function outdentDraft(row) {
+    const task = taskMap().get(row.dataset.id);
+    if (!task._parentId) return;
+    const oldParentId = task._parentId;
+    const parentBranch = row.closest(".branch").parentElement.closest(".branch");
+    const grandparentId = parentBranch?.dataset.parent || null;
+    taskMap().get(oldParentId).dependencies = taskMap().get(oldParentId).dependencies.filter(id => id !== task.id);
+    task._parentId = grandparentId; task._afterId = oldParentId;
+    if (grandparentId) {
+      const siblings = taskMap().get(grandparentId).dependencies;
+      siblings.splice(siblings.indexOf(oldParentId) + 1, 0, task.id);
+    }
+    focusRequest = {id: task.id, field: "task-name", parentId: grandparentId, category: task._contextCategory};
+    render();
+  }
 
   categoryFilters.addEventListener("click", event => {
     const chip = event.target.closest(".filter-chip"); if (!chip) return;
@@ -274,17 +396,84 @@
     chip.setAttribute("aria-pressed", String(selectedPriorities.has(chip.dataset.value))); render();
   });
   grouping.addEventListener("change", render);
+  sorting.addEventListener("change", render);
   checklist.addEventListener("pointerdown", event => { if (!event.target.closest(".menu-panel") && !event.target.closest(".menu-toggle")) closeMenus(); }, true);
   document.addEventListener("pointerdown", event => { if (!event.target.closest(".menu-panel") && !event.target.closest(".menu-toggle")) closeMenus(); }, true);
   checklist.addEventListener("click", event => {
+    const rendered = event.target.closest(".task-rendered");
+    if (rendered) {
+      const input = rendered.parentElement.querySelector(rendered.matches(".task-name-rendered") ? ".task-name" : ".task-description");
+      rendered.hidden = true; input.hidden = false; input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      return;
+    }
     const toggle = event.target.closest(".menu-toggle");
     if (toggle) { const panel = toggle.nextElementSibling; const opening = panel.hidden; closeMenus(panel); panel.hidden = !opening; toggle.setAttribute("aria-expanded", String(opening)); return; }
     const remove = event.target.closest(".remove-task");
     if (remove) {
       const row = remove.closest(".task-row");
       const task = taskMap().get(row.dataset.id);
-      if (confirm(`Delete this task?\n\n${task.name}`)) queueSave(() => requestJson(`/api/tasks/${encodeURIComponent(row.dataset.id)}`, {method: "DELETE", body: JSON.stringify({revision})}), true);
+      pendingDeletion = {id: task.id, parentId: row.dataset.parent || null, category: row.dataset.category || null};
+      deleteContext.textContent = `${task.name} · ${task.priority ? task.priority[0].toUpperCase() + task.priority.slice(1) : "Unprioritized"}`;
+      detachTaskButton.hidden = !pendingDeletion.parentId;
+      deleteDialog.showModal();
     }
+  });
+  cancelDelete.addEventListener("click", () => deleteDialog.close());
+  deleteDialog.addEventListener("click", event => { if (event.target === deleteDialog) deleteDialog.close(); });
+  detachTaskButton.addEventListener("click", () => {
+    if (!pendingDeletion?.parentId) return;
+    queueSave(() => requestJson(`/api/tasks/${encodeURIComponent(pendingDeletion.id)}/detach`, {method: "POST", body: JSON.stringify({revision, parent_id: pendingDeletion.parentId})}), true)
+      .then(() => deleteDialog.close());
+  });
+  confirmDeleteTask.addEventListener("click", () => {
+    if (!pendingDeletion) return;
+    queueSave(() => requestJson(`/api/tasks/${encodeURIComponent(pendingDeletion.id)}`, {method: "DELETE", body: JSON.stringify({revision})}), true)
+      .then(() => deleteDialog.close());
+  });
+  manageCategories.addEventListener("click", () => { renderCategoryEditor(); categoryDialog.showModal(); });
+  categoryDialog.addEventListener("click", event => { if (event.target === categoryDialog) categoryDialog.close(); });
+  categoryEditor.addEventListener("change", event => {
+    if (!event.target.matches("input") || event.target.closest(".new-category")) return;
+    const row = event.target.closest(".category-editor-row");
+    queueSave(() => requestJson(`/api/categories/${encodeURIComponent(row.dataset.id)}`, {method: "PATCH", body: JSON.stringify({revision, display_name: event.target.value})}), false)
+      .then(() => { renderFilters(); render(); renderCategoryEditor(); });
+  });
+  categoryEditor.addEventListener("click", event => {
+    const button = event.target.closest("button"); if (!button) return;
+    if (button.dataset.action === "save-new") return;
+    const row = button.closest(".category-editor-row");
+    if (button.dataset.action === "remove") {
+      queueSave(() => requestJson(`/api/categories/${encodeURIComponent(row.dataset.id)}`, {method: "DELETE", body: JSON.stringify({revision})}), false)
+        .then(() => { selectedCategories.delete(row.dataset.id); renderFilters(); render(); renderCategoryEditor(); });
+    } else {
+      const offset = button.dataset.action === "up" ? -1 : 1;
+      queueSave(() => requestJson(`/api/categories/${encodeURIComponent(row.dataset.id)}`, {method: "PATCH", body: JSON.stringify({revision, offset})}), false)
+        .then(() => { renderFilters(); render(); renderCategoryEditor(); });
+    }
+  });
+  addListCategory.addEventListener("click", () => {
+    categoryEditor.insertAdjacentHTML("beforeend", `<div class="category-editor-row new-category">
+      <input class="new-category-name" placeholder="Category name" aria-label="New category name">
+      <input class="new-category-id" placeholder="category-id" aria-label="New category ID">
+      <button type="button" data-action="save-new">Add</button><span></span>
+    </div>`);
+    categoryEditor.querySelector(".new-category:last-child .new-category-name").focus();
+  });
+  categoryEditor.addEventListener("input", event => {
+    if (!event.target.matches(".new-category-name")) return;
+    const id = event.target.closest(".new-category").querySelector(".new-category-id");
+    if (!id.dataset.manual) id.value = categorySlug(event.target.value);
+  });
+  categoryEditor.addEventListener("input", event => {
+    if (event.target.matches(".new-category-id")) event.target.dataset.manual = "true";
+  });
+  categoryEditor.addEventListener("click", event => {
+    const button = event.target.closest('[data-action="save-new"]'); if (!button) return;
+    const row = button.closest(".new-category");
+    queueSave(() => requestJson("/api/categories", {method: "POST", body: JSON.stringify({
+      revision, id: row.querySelector(".new-category-id").value, display_name: row.querySelector(".new-category-name").value
+    })}), false).then(() => { renderFilters(); render(); renderCategoryEditor(); });
   });
   checklist.addEventListener("input", event => {
     const emptyRow = event.target.closest(".empty-category-row");
@@ -309,13 +498,27 @@
       patchTask(id, fields);
     }, 650));
   });
+  checklist.addEventListener("focusout", event => {
+    if (!event.target.matches(".task-name, .task-description") || event.target.closest(".task-row")?.dataset.id.startsWith("draft-")) return;
+    const input = event.target;
+    const rendered = input.parentElement.querySelector(input.matches(".task-name") ? ".task-name-rendered" : ".task-description-rendered");
+    if (!rendered) return;
+    rendered.innerHTML = inlineMarkup(input.value || (input.matches(".task-description") ? "Description" : ""));
+    input.hidden = true; rendered.hidden = false;
+  });
   checklist.addEventListener("change", event => {
     const row = event.target.closest(".task-row"); if (!row) return;
     const id = row.dataset.id;
     if (event.target.matches(".task-check")) { patchTask(id, {completed: event.target.checked}).catch(() => { event.target.checked = !event.target.checked; }); return; }
     if (event.target.dataset.field === "priority") { patchTask(id, {priority: event.target.value || null}, true); return; }
     if (event.target.dataset.field === "categories") { patchTask(id, {categories: [...event.target.selectedOptions].map(option => option.value)}, true); return; }
-    if (["due", "due-time", "deadline-kind"].includes(event.target.dataset.field)) {
+    if (event.target.dataset.field === "due-precision") {
+      configureDueControls(row);
+      if (event.target.value === "none") patchTask(id, {due: null, deadline_kind: null}, true);
+      else row.querySelector('[data-field="due-value"]').focus();
+      return;
+    }
+    if (["due-value", "due-time", "deadline-kind"].includes(event.target.dataset.field)) {
       try { patchTask(id, parseDue(row), true); } catch (error) { showError(error); }
     }
   });
@@ -334,6 +537,8 @@
     if (!event.target.matches(".task-name")) return;
     const row = event.target.closest(".task-row");
     const task = taskMap().get(row.dataset.id);
+    if (event.altKey && event.key === "ArrowUp") { event.preventDefault(); reorderTask(row, -1); return; }
+    if (event.altKey && event.key === "ArrowDown") { event.preventDefault(); reorderTask(row, 1); return; }
     if ((event.key === "Backspace" || event.key === "Escape") && task._draft && !event.target.value) {
       event.preventDefault(); discardDraft(task.id); return;
     }
@@ -356,11 +561,13 @@
       return;
     }
     if (event.key === "Tab" && event.shiftKey) {
+      if (task._draft) { event.preventDefault(); outdentDraft(row); return; }
       event.preventDefault(); const branch = row.closest(".branch"); const parentBranch = branch.parentElement.closest(".branch");
       if (parentBranch) move(row, parentBranch.dataset.parent || null, parentBranch.dataset.id);
       return;
     }
     if (event.key === "Tab") {
+      if (task._draft) { event.preventDefault(); indentDraft(row); return; }
       event.preventDefault(); const branch = row.closest(".branch"); const previous = branch.previousElementSibling;
       if (previous?.matches(".branch")) move(row, previous.dataset.id, null);
     }
@@ -374,12 +581,38 @@
   function showCreation(data) {
     priorities = data.priorities;
     listDate.value = data.default_date;
-    creationCategories.innerHTML = data.categories.map(category => `<li>${escapeHtml(category.display_name)}</li>`).join("");
+    creationCategories.innerHTML = "";
     editor.hidden = true; firstRun.hidden = false; app.setAttribute("aria-busy", "false");
+    addCreationCategoryRow();
   }
+  function categorySlug(name) {
+    return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+  function addCreationCategoryRow(name = "", id = "") {
+    creationCategories.insertAdjacentHTML("beforeend", `<div class="creation-category">
+      <input class="creation-category-name" value="${escapeHtml(name)}" placeholder="Category name" aria-label="Category name">
+      <input class="creation-category-id" value="${escapeHtml(id)}" placeholder="category-id" aria-label="Category ID">
+    </div>`);
+    creationCategories.querySelector(".creation-category:last-child .creation-category-name").focus();
+  }
+  addCreationCategory.addEventListener("click", () => addCreationCategoryRow());
+  creationCategories.addEventListener("input", event => {
+    if (!event.target.matches(".creation-category-name")) return;
+    const id = event.target.closest(".creation-category").querySelector(".creation-category-id");
+    if (!id.dataset.manual) id.value = categorySlug(event.target.value);
+  });
+  creationCategories.addEventListener("input", event => {
+    if (event.target.matches(".creation-category-id")) event.target.dataset.manual = "true";
+  });
+  creationCategories.addEventListener("keydown", event => {
+    if (event.key === "Enter") { event.preventDefault(); addCreationCategoryRow(); }
+  });
   createListForm.addEventListener("submit", event => {
     event.preventDefault(); clearError(); app.setAttribute("aria-busy", "true");
-    requestJson("/api/todo", {method: "POST", body: JSON.stringify({date: listDate.value})})
+    const categories = [...creationCategories.querySelectorAll(".creation-category")]
+      .map(row => ({id: row.querySelector(".creation-category-id").value.trim(), display_name: row.querySelector(".creation-category-name").value.trim()}))
+      .filter(category => category.id || category.display_name);
+    requestJson("/api/todo", {method: "POST", body: JSON.stringify({date: listDate.value, categories})})
       .then(startEditor)
       .catch(error => { app.setAttribute("aria-busy", "false"); showError(error); });
   });

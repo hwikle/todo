@@ -7,7 +7,6 @@ from pathlib import Path
 import sys
 
 from todo_schema import CanonicalSchemaBundle
-from todo_repository import RepositoryError
 from todo_web import create_app
 from todo_web_application import WebEditError
 
@@ -28,6 +27,6 @@ def run(args: argparse.Namespace, bundle: CanonicalSchemaBundle) -> int:
         app = create_app(args.file, bundle)
         app.run(host=args.host, port=args.port, debug=False)
         return 0
-    except (OSError, RepositoryError, WebEditError, ValueError) as exc:
+    except (OSError, WebEditError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

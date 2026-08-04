@@ -7,7 +7,6 @@ from pathlib import Path
 import sys
 from typing import cast
 
-import todo_category_commands
 import todo_import_commands
 import todo_list_commands
 import todo_schedule_commands
@@ -38,7 +37,6 @@ def parser(bundle: CanonicalSchemaBundle) -> argparse.ArgumentParser:
     todo_task_commands.configure(commands, bundle)
     todo_list_commands.configure(commands)
     todo_view_commands.configure(commands)
-    todo_category_commands.configure(commands)
     todo_import_commands.configure(commands)
     todo_schedule_commands.configure(commands)
     todo_web_commands.configure(commands)
@@ -55,8 +53,6 @@ def main() -> int:
             return todo_list_commands.run(args, bundle)
         if args.command == "view":
             return todo_view_commands.run(args, bundle)
-        if args.command == "category":
-            return todo_category_commands.run(args)
         if args.command == "import":
             return todo_import_commands.run(args, bundle)
         if args.command == "serve":

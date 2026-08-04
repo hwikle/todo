@@ -8,7 +8,7 @@ import datetime as dt
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, cast
+from typing import Any, Callable, Optional, cast
 
 from todo_application import AddTaskRequest, EditTaskRequest, TodoApplication
 from todo_generation import generate_document
@@ -53,11 +53,9 @@ class TodoWebApplication:
         self,
         path: Path,
         bundle: CanonicalSchemaBundle,
-        configured_categories: Iterable[Category] = (),
     ) -> None:
         self.path = path.resolve()
         self.application = TodoApplication(bundle)
-        self.configured_categories = tuple(copy.deepcopy(list(configured_categories)))
 
     @staticmethod
     def _revision(content: bytes) -> str:
@@ -82,13 +80,14 @@ class TodoWebApplication:
         return {
             "exists": False,
             "default_date": dt.date.today().isoformat(),
-            "categories": list(copy.deepcopy(self.configured_categories)),
         }
 
-    def create(self, target_date: str) -> DocumentSnapshot:
+    def create(self, target_date: str, categories: list[Category]) -> DocumentSnapshot:
         if self.path.exists():
             raise RevisionConflict("the TODO list was created elsewhere; reload before continuing")
-        document = generate_document(target_date, None, self.configured_categories)
+        if not categories:
+            raise WebEditError("at least one category is required")
+        document = generate_document(target_date, None, categories)
         errors = [
             issue for issue in self.application.validate(document)
             if issue.severity == "error"
@@ -234,6 +233,50 @@ class TodoWebApplication:
 
         return self._change(expected_revision, operation)
 
+    def reorder_task(
+        self,
+        expected_revision: str,
+        task_id: str,
+        *,
+        parent_id: Optional[str],
+        category_id: Optional[str],
+        offset: int,
+    ) -> DocumentSnapshot:
+        def operation(document: TodoList) -> TodoList:
+            updated = copy.deepcopy(document)
+            if parent_id:
+                siblings = resolve_task(updated, parent_id)["dependencies"]
+            else:
+                membership = next(
+                    (item for item in updated["category_memberships"] if item["category"] == category_id),
+                    None,
+                )
+                if membership is None:
+                    raise WebEditError("root task reordering requires its displayed category")
+                siblings = membership["tasks"]
+            if task_id not in siblings:
+                raise WebEditError("task is not in its displayed sibling list")
+            index = siblings.index(task_id)
+            target = max(0, min(len(siblings) - 1, index + offset))
+            siblings.pop(index)
+            siblings.insert(target, task_id)
+            return updated
+
+        return self._change(expected_revision, operation)
+
+    def detach_task(
+        self, expected_revision: str, task_id: str, parent_id: str
+    ) -> DocumentSnapshot:
+        def operation(document: TodoList) -> TodoList:
+            updated = copy.deepcopy(document)
+            parent = resolve_task(updated, parent_id)
+            if task_id not in parent["dependencies"]:
+                raise WebEditError("task is not attached to its displayed parent")
+            parent["dependencies"].remove(task_id)
+            return updated
+
+        return self._change(expected_revision, operation)
+
     def remove_task(self, expected_revision: str, task_id: str) -> DocumentSnapshot:
         def operation(document: TodoList) -> TodoList:
             parents = [task for task in document["tasks"] if task_id in task["dependencies"]]
@@ -261,6 +304,66 @@ class TodoWebApplication:
             expected_revision,
             operation,
         )
+
+    def add_category(
+        self, expected_revision: str, category_id: str, display_name: str
+    ) -> DocumentSnapshot:
+        def operation(document: TodoList) -> TodoList:
+            updated = copy.deepcopy(document)
+            updated["categories"].append({"id": category_id, "display_name": display_name.strip()})
+            updated["category_memberships"].append({"category": category_id, "tasks": []})
+            return updated
+
+        return self._change(expected_revision, operation)
+
+    def rename_category(
+        self, expected_revision: str, category_id: str, display_name: str
+    ) -> DocumentSnapshot:
+        def operation(document: TodoList) -> TodoList:
+            updated = copy.deepcopy(document)
+            category = next((item for item in updated["categories"] if item["id"] == category_id), None)
+            if category is None:
+                raise WebEditError(f"unknown category {category_id!r}")
+            category["display_name"] = display_name.strip()
+            return updated
+
+        return self._change(expected_revision, operation)
+
+    def move_category(
+        self, expected_revision: str, category_id: str, offset: int
+    ) -> DocumentSnapshot:
+        def operation(document: TodoList) -> TodoList:
+            updated = copy.deepcopy(document)
+            index = next((i for i, item in enumerate(updated["categories"]) if item["id"] == category_id), None)
+            if index is None:
+                raise WebEditError(f"unknown category {category_id!r}")
+            target = max(0, min(len(updated["categories"]) - 1, index + offset))
+            category = updated["categories"].pop(index)
+            updated["categories"].insert(target, category)
+            return updated
+
+        return self._change(expected_revision, operation)
+
+    def remove_category(self, expected_revision: str, category_id: str) -> DocumentSnapshot:
+        def operation(document: TodoList) -> TodoList:
+            updated = copy.deepcopy(document)
+            if len(updated["categories"]) == 1:
+                raise WebEditError("a TODO list must keep at least one category")
+            membership = next(
+                (item for item in updated["category_memberships"] if item["category"] == category_id),
+                None,
+            )
+            if membership is None:
+                raise WebEditError(f"unknown category {category_id!r}")
+            if membership["tasks"]:
+                raise WebEditError("remove or reassign every task in this category first")
+            updated["categories"] = [item for item in updated["categories"] if item["id"] != category_id]
+            updated["category_memberships"] = [
+                item for item in updated["category_memberships"] if item["category"] != category_id
+            ]
+            return updated
+
+        return self._change(expected_revision, operation)
 
     @staticmethod
     def _position(

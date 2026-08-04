@@ -83,7 +83,7 @@ class CanonicalGenerationTest(unittest.TestCase):
         )
         self.assertFalse(any(issue.severity == "error" for issue in self.validator.validate(generated)))
 
-    def test_empty_first_day_uses_configured_categories(self) -> None:
+    def test_empty_first_day_uses_explicit_categories(self) -> None:
         generated = generate_document(
             "2042-01-03",
             None,
@@ -99,6 +99,7 @@ class CanonicalGenerationTest(unittest.TestCase):
                     str(ROOT / "bin" / "todo"), "list", "create",
                     "--date",
                     "2042-01-03",
+                    "--category", "work=Work",
                 ],
                 cwd=ROOT,
                 capture_output=True,

@@ -16,7 +16,7 @@ class GenerationError(Exception):
 def generate_document(
     target_date: str,
     previous: Optional[TodoList],
-    configured_categories: Iterable[Category],
+    initial_categories: Iterable[Category],
 ) -> TodoList:
     try:
         target_date = dt.date.fromisoformat(target_date).isoformat()
@@ -24,7 +24,7 @@ def generate_document(
         raise GenerationError(f"invalid target date {target_date!r}") from exc
 
     if previous is None:
-        categories = [copy.deepcopy(category) for category in configured_categories]
+        categories = [copy.deepcopy(category) for category in initial_categories]
         return {
             "date": target_date,
             "tasks": [],
@@ -52,7 +52,7 @@ def generate_document(
 
     categories = [copy.deepcopy(category) for category in previous["categories"]]
     category_ids = {category["id"] for category in categories}
-    for category in configured_categories:
+    for category in initial_categories:
         if category["id"] not in category_ids:
             categories.append(copy.deepcopy(category))
             category_ids.add(category["id"])

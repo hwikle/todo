@@ -25,16 +25,21 @@ button, select, input { outline-offset: 2px; }
 #create-list-form { display: grid; gap: 18px; margin-top: 22px; }
 #create-list-form label { display: grid; gap: 5px; }
 #create-list-form input { width: fit-content; border: 1px solid var(--line); border-radius: 6px; padding: 7px; background: var(--soft); }
-#create-list-form ul { margin: 7px 0 0; padding-left: 22px; color: var(--muted); columns: 2; }
+#creation-categories { display: grid; gap: 7px; margin-top: 7px; }
+.creation-category { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, .6fr); gap: 7px; }
 #create-list-form button { width: fit-content; border: 0; border-radius: 6px; padding: 8px 13px; background: var(--selected); color: var(--selected-text); cursor: pointer; }
-.toolbar { display: grid; grid-template-columns: 1fr auto; gap: 9px 20px; align-items: center; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
+#create-list-form #add-creation-category { background: var(--soft); color: var(--text); border: 1px solid var(--line); }
+.toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 9px 14px; align-items: center; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
 .filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
 .filter-row > span { width: 64px; color: var(--muted); }
 .filter-chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; background: transparent; cursor: pointer; }
 .filter-chip[aria-pressed="true"] { border-color: var(--selected); background: var(--selected); color: var(--selected-text); }
-.grouping { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 7px; color: var(--muted); }
-.grouping select { border: 1px solid var(--line); border-radius: 6px; background: var(--soft); padding: 5px 8px; }
-#save-status { grid-column: 2; grid-row: 2; color: var(--muted); text-align: right; }
+.grouping, .sorting { display: flex; align-items: center; gap: 7px; color: var(--muted); }
+.grouping { grid-column: 2; grid-row: 1; }
+.sorting { grid-column: 3; grid-row: 1; }
+.grouping select, .sorting select { border: 1px solid var(--line); border-radius: 6px; background: var(--soft); padding: 5px 8px; }
+#manage-categories { grid-column: 2; grid-row: 2; width: fit-content; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+#save-status { grid-column: 3; grid-row: 2; color: var(--muted); text-align: right; }
 #message { margin: 12px 0 0; color: var(--danger); }
 
 .check-group { padding-top: 22px; }
@@ -47,11 +52,17 @@ button, select, input { outline-offset: 2px; }
 .task-check:checked { background: var(--selected); border-color: var(--selected); }
 .task-check:checked::after { content: "✓"; color: var(--selected-text); font-size: 12px; }
 .task-fields { min-width: 0; }
-.task-name, .task-description { display: block; width: 100%; border: 0; border-radius: 3px; padding: 3px 2px; background: transparent; }
+.task-name, .task-description, .task-rendered { display: block; width: 100%; border: 0; border-radius: 3px; padding: 3px 2px; background: transparent; text-align: left; }
+.task-rendered { cursor: text; }
+.task-rendered code { padding: 1px 3px; border-radius: 3px; background: var(--soft); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
+.task-rendered[hidden], .task-name[hidden], .task-description[hidden] { display: none; }
 .task-name { font-weight: 500; }
+.task-name-rendered { font-weight: 500; }
 .task-description { color: var(--muted); }
+.task-description-rendered { color: var(--muted); }
 .task-name:focus, .task-description:focus { background: var(--soft); }
 .task-meta { display: flex; gap: 7px; align-items: center; min-height: 25px; color: var(--muted); white-space: nowrap; }
+.priority-indicator { padding: 2px 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: .78rem; }
 .due.hard { color: var(--danger); font-weight: 500; }
 .task-menu { position: relative; }
 .menu-toggle { opacity: 0; border: 0; padding: 1px 5px; background: transparent; color: var(--muted); cursor: pointer; }
@@ -60,17 +71,31 @@ button, select, input { outline-offset: 2px; }
 .menu-panel[hidden] { display: none; }
 .menu-panel label { display: grid; gap: 3px; color: var(--muted); }
 .menu-panel input, .menu-panel select { width: 100%; border: 1px solid var(--line); border-radius: 5px; padding: 6px; background: var(--soft); }
+.due-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin: 0; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.due-controls legend { color: var(--muted); padding: 0 4px; }
+.due-controls [hidden] { display: none; }
 .remove-task { width: fit-content; border: 0; padding: 3px 0; background: transparent; color: var(--danger); cursor: pointer; }
 .children { margin-left: 28px; }
 .empty { color: var(--muted); padding: 22px 0; }
 .empty-category-row { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 6px; min-height: 29px; padding: 2px 0; }
 .empty-category-row::before { content: ""; }
 .keyboard-help { color: var(--muted); margin: 17px 0 0; }
+dialog { width: min(560px, 90vw); border: 1px solid var(--line); border-radius: 10px; padding: 18px; background: var(--page); color: var(--text); }
+dialog::backdrop { background: light-dark(#0004, #0008); }
+dialog h2 { margin: 0 0 14px; font-size: 1.25rem; font-weight: 500; }
+.dialog-close { float: right; border: 0; background: transparent; font-size: 1.4rem; cursor: pointer; }
+.dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.dialog-actions button, #add-list-category { border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; background: var(--soft); cursor: pointer; }
+#confirm-delete-task { color: var(--danger); }
+#category-editor { display: grid; gap: 7px; }
+.category-editor-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 5px; align-items: center; }
+.category-editor-row input { border: 1px solid var(--line); border-radius: 5px; padding: 6px; background: var(--soft); }
+.category-editor-row button { border: 0; background: transparent; cursor: pointer; }
 
 @media (max-width: 650px) {
   #todo-app { padding: 14px 12px 28px; }
   .toolbar { grid-template-columns: 1fr; }
-  .grouping, #save-status { grid-column: 1; grid-row: auto; text-align: left; }
+  .grouping, .sorting, #manage-categories, #save-status { grid-column: 1; grid-row: auto; text-align: left; }
   .task-row { grid-template-columns: 25px minmax(0, 1fr); }
   .task-meta { grid-column: 2; }
 }
