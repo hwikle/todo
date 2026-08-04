@@ -1,9 +1,8 @@
-# Daily TODO
+# Yet Another Todo List
 
-Daily TODO is a local canonical-JSON task system with ID-free Markdown views,
+YATL is a local canonical-JSON task system with ID-free Markdown views,
 schema and semantic validation, checkbox synchronization, carry-forward, and an
-editable browser checklist, plus an optional macOS schedule. Personal list data
-under `todos/` and `backlog/` is ignored by Git.
+editable browser checklist, plus an optional macOS schedule.
 
 Run `bin/setup`, then either invoke `bin/todo` directly or source `activate.sh`
 to make `todo` available in the current shell. Every data-transforming command
