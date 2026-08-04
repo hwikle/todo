@@ -71,6 +71,8 @@ class WebAdapterTest(unittest.TestCase):
         self.assertIn(".task-heading", stylesheet)
         self.assertIn(".drop-indicator { position: absolute", stylesheet)
         self.assertNotIn(".task-row.contextual { opacity", stylesheet)
+        self.assertIn("menuRequest = menuState(row)", script)
+        self.assertIn("restoreMenu(menuRequest)", script)
 
     def test_missing_file_can_be_created_in_the_browser(self) -> None:
         missing = Path(self.temporary.name) / "missing" / "todo.json"

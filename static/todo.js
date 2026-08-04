@@ -40,6 +40,7 @@
   const openDescriptions = new Set();
   const timers = new Map();
   let pendingDeletion = null;
+  let menuRequest = null;
   let draggedTask = null;
   let pendingDrop = null;
 
@@ -203,6 +204,25 @@
       target.setSelectionRange(start, end);
     }
   }
+  function menuState(row) {
+    return {
+      id: row.dataset.id,
+      parentId: row.dataset.parent || "",
+      category: row.dataset.category || ""
+    };
+  }
+  function restoreMenu(state) {
+    if (!state) return;
+    const row = checklist.querySelector(
+      `.task-row[data-id="${CSS.escape(state.id)}"][data-parent="${CSS.escape(state.parentId)}"][data-category="${CSS.escape(state.category)}"]`
+    );
+    const toggle = row?.querySelector(".menu-toggle");
+    const panel = row?.querySelector(".menu-panel");
+    if (!toggle || !panel) return;
+    closeMenus(panel);
+    panel.hidden = false;
+    toggle.setAttribute("aria-expanded", "true");
+  }
   function render() {
     const activeEditor = activeEditorState();
     const tasks = taskMap();
@@ -228,7 +248,9 @@
     checklist.append(dropIndicator);
     const editorToRestore = focusRequest || activeEditor;
     if (editorToRestore) restoreEditor(editorToRestore);
+    restoreMenu(menuRequest);
     focusRequest = null;
+    menuRequest = null;
   }
   function renderFilters() {
     categoryFilters.querySelectorAll("button").forEach(button => button.remove());
@@ -246,6 +268,7 @@
     </div>`).join("");
   }
   function showError(error) {
+    menuRequest = null;
     message.textContent = error.message;
     message.hidden = false; saveStatus.textContent = "Not saved";
   }
@@ -658,8 +681,16 @@
     const row = event.target.closest(".task-row"); if (!row) return;
     const id = row.dataset.id;
     if (event.target.matches(".task-check")) { patchTask(id, {completed: event.target.checked}).catch(() => { event.target.checked = !event.target.checked; }); return; }
-    if (event.target.dataset.field === "priority") { patchTask(id, {priority: event.target.value || null}, true); return; }
-    if (event.target.dataset.field === "categories") { patchTask(id, {categories: [...event.target.selectedOptions].map(option => option.value)}, true); return; }
+    if (event.target.dataset.field === "priority") {
+      menuRequest = menuState(row);
+      patchTask(id, {priority: event.target.value || null}, true);
+      return;
+    }
+    if (event.target.dataset.field === "categories") {
+      menuRequest = menuState(row);
+      patchTask(id, {categories: [...event.target.selectedOptions].map(option => option.value)}, true);
+      return;
+    }
     if (event.target.dataset.field === "due-precision") {
       configureDueControls(row);
       if (event.target.value === "none") patchTask(id, {due: null, deadline_kind: null}, true);
