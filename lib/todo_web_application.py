@@ -16,6 +16,7 @@ from todo_io import create_text_atomic, write_text_atomic
 from todo_model import Category, DeadlineKind, DueDate, Priority, Task, TodoList
 from todo_schema import CanonicalSchemaBundle
 from todo_selectors import resolve_task
+from todo_validation import Issue
 
 
 class WebEditError(ValueError):
@@ -26,10 +27,24 @@ class RevisionConflict(WebEditError):
     """The canonical file changed after the browser last loaded it."""
 
 
+class TodoStructureError(WebEditError):
+    """The source cannot be represented by the checklist editor."""
+
+
+class RepairRequiredError(WebEditError):
+    """A structurally valid document has semantic errors."""
+
+    def __init__(self, issues: tuple[Issue, ...]) -> None:
+        self.issues = issues
+        super().__init__("the TODO list contains semantic validation errors")
+
+
 @dataclass(frozen=True)
 class DocumentSnapshot:
     document: TodoList
     revision: str
+    issues: tuple[Issue, ...] = ()
+    saved: bool = True
 
 
 @dataclass(frozen=True)
@@ -45,9 +60,13 @@ class TodoWebApplication:
         self,
         path: Path,
         bundle: CanonicalSchemaBundle,
+        repair: bool = False,
     ) -> None:
         self.path = path.resolve()
         self.application = TodoApplication(bundle)
+        self.repair = repair
+        self._repair_document: Optional[TodoList] = None
+        self._repair_revision: Optional[str] = None
 
     @staticmethod
     def _revision(content: bytes) -> str:
@@ -55,15 +74,34 @@ class TodoWebApplication:
 
     def load(self) -> DocumentSnapshot:
         content = self.path.read_bytes()
-        document = cast(TodoList, json.loads(content))
-        errors = [
-            issue for issue in self.application.validate(document)
-            if issue.severity == "error"
-        ]
+        revision = self._revision(content)
+        if self._repair_document is not None:
+            if revision != self._repair_revision:
+                raise RevisionConflict("the TODO list changed on disk; reload before continuing")
+            issues = tuple(self.application.validator.validate_semantics(self._repair_document))
+            return DocumentSnapshot(copy.deepcopy(self._repair_document), revision, issues, False)
+        try:
+            value = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise TodoStructureError(
+                f"invalid JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}"
+            ) from exc
+        schema_errors = self.application.validator.validate_schema(value)
+        if schema_errors:
+            raise TodoStructureError(format_issues(schema_errors, value))
+        document = cast(TodoList, value)
+        issues = tuple(self.application.validator.validate_semantics(document))
+        errors = tuple(issue for issue in issues if issue.severity == "error")
+        unrepairable = tuple(issue for issue in errors if not _editor_can_repair(issue))
+        if unrepairable:
+            raise TodoStructureError(format_issues(unrepairable, document))
+        if errors and not self.repair:
+            raise RepairRequiredError(errors)
         if errors:
-            first = errors[0]
-            raise WebEditError(f"{first.location}: {first.message}")
-        return DocumentSnapshot(document, self._revision(content))
+            self._repair_document = copy.deepcopy(document)
+            self._repair_revision = revision
+            return DocumentSnapshot(document, revision, issues, False)
+        return DocumentSnapshot(document, revision, issues)
 
     def exists(self) -> bool:
         return self.path.exists()
@@ -100,16 +138,22 @@ class TodoWebApplication:
         current = self.path.read_bytes()
         if self._revision(current) != expected_revision:
             raise RevisionConflict("the TODO list changed on disk; reload before saving")
-        errors = [
-            issue for issue in self.application.validate(document)
-            if issue.severity == "error"
-        ]
+        schema_errors = self.application.validator.validate_schema(document)
+        if schema_errors:
+            raise WebEditError(format_issues(schema_errors, document))
+        issues = tuple(self.application.validator.validate_semantics(document))
+        errors = [issue for issue in issues if issue.severity == "error"]
+        if errors and self.repair:
+            self._repair_document = copy.deepcopy(document)
+            self._repair_revision = expected_revision
+            return DocumentSnapshot(copy.deepcopy(document), expected_revision, issues, False)
         if errors:
-            first = errors[0]
-            raise WebEditError(f"{first.location}: {first.message}")
+            raise WebEditError(format_issues(errors, document))
         content = (json.dumps(document, indent=2, ensure_ascii=False) + "\n").encode()
         write_text_atomic(self.path, content.decode(), replace=True)
-        return DocumentSnapshot(document, self._revision(content))
+        self._repair_document = None
+        self._repair_revision = None
+        return DocumentSnapshot(document, self._revision(content), issues)
 
     def _change(
         self,
@@ -147,6 +191,7 @@ class TodoWebApplication:
                     priority=priority,
                     dependency_of=(parent_id,) if parent_id else (),
                 ),
+                validate=not self.repair,
             )
             new_task = next(task for task in updated["tasks"] if task["id"] not in before)
             created_id = new_task["id"]
@@ -194,7 +239,7 @@ class TodoWebApplication:
                 deadline_kind=deadline_kind if due_supplied and due is not None else None,
                 clear_due=due_supplied and due is None,
             )
-            return self.application.edit(document, task_id, request)
+            return self.application.edit(document, task_id, request, validate=not self.repair)
 
         return self._change(expected_revision, operation)
 
@@ -203,7 +248,9 @@ class TodoWebApplication:
     ) -> DocumentSnapshot:
         return self._change(
             expected_revision,
-            lambda document: self.application.complete(document, task_id, completed),
+            lambda document: self.application.complete(
+                document, task_id, completed, validate=not self.repair
+            ),
         )
 
     def move_task(
@@ -279,7 +326,7 @@ class TodoWebApplication:
     def remove_task(self, expected_revision: str, task_id: str) -> DocumentSnapshot:
         return self._change(
             expected_revision,
-            lambda document: self.application.remove(document, task_id),
+            lambda document: self.application.remove(document, task_id, validate=not self.repair),
         )
 
     def add_category(
@@ -384,4 +431,61 @@ class TodoWebApplication:
 
 
 def snapshot_payload(snapshot: DocumentSnapshot) -> dict[str, Any]:
-    return {"document": snapshot.document, "revision": snapshot.revision}
+    return {
+        "document": snapshot.document,
+        "revision": snapshot.revision,
+        "issues": [
+            {
+                **issue.__dict__,
+                "label": _model_label(issue.location, snapshot.document),
+            }
+            for issue in snapshot.issues
+        ],
+        "saved": snapshot.saved,
+    }
+
+
+def format_issues(issues: list[Issue] | tuple[Issue, ...], document: object) -> str:
+    lines: list[str] = []
+    for issue in issues:
+        label = _model_label(issue.location, document)
+        lines.append(f"{label} ({issue.location}): {issue.message}" if label else f"{issue.location}: {issue.message}")
+    return "\n".join(lines)
+
+
+def _model_label(location: str, document: object) -> Optional[str]:
+    if not isinstance(document, dict):
+        return None
+    for collection, singular, fields in (
+        ("tasks", "Task", ("name", "id")),
+        ("categories", "Category", ("display_name", "id")),
+    ):
+        prefix = f"$.{collection}["
+        if not location.startswith(prefix):
+            continue
+        index_text = location[len(prefix):].split("]", 1)[0]
+        try:
+            item = document.get(collection, [])[int(index_text)]
+        except (IndexError, TypeError, ValueError):
+            return f"Unidentified {singular.lower()}"
+        if isinstance(item, dict):
+            for field in fields:
+                value = item.get(field)
+                if isinstance(value, str) and value:
+                    return f'{singular} "{value}"'
+        return f"Unidentified {singular.lower()}"
+    return None
+
+
+def _editor_can_repair(issue: Issue) -> bool:
+    unrepresentable = (
+        "ambiguous task ID",
+        "ambiguous category ID",
+        "duplicate task ID",
+        "duplicate category ID",
+        "duplicate category/task membership",
+        "unknown task ID",
+        "unknown category ID",
+        "task cannot depend on itself",
+    )
+    return not any(text in issue.message for text in unrepresentable)

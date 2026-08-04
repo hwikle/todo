@@ -63,7 +63,7 @@ class TodoApplication:
     def validate(self, document: TodoList) -> list[Issue]:
         return self.validator.validate(document)
 
-    def add(self, document: TodoList, request: AddTaskRequest) -> TodoList:
+    def add(self, document: TodoList, request: AddTaskRequest, *, validate: bool = True) -> TodoList:
         if (request.due is None) != (request.deadline_kind is None):
             raise TodoApplicationError("due date and deadline kind must be provided together")
         try:
@@ -81,11 +81,13 @@ class TodoApplication:
             attach_to_parents(
                 added.document, added.task, request.dependency_of, self.bundle.priority_policy
             )
-            return self._checked(added.document)
+            return self._checked(added.document) if validate else added.document
         except (TaskAdditionError, TaskIdGenerationError, TaskMutationError, SelectorError) as exc:
             raise TodoApplicationError(str(exc)) from exc
 
-    def edit(self, document: TodoList, selector: str, request: EditTaskRequest) -> TodoList:
+    def edit(
+        self, document: TodoList, selector: str, request: EditTaskRequest, *, validate: bool = True
+    ) -> TodoList:
         updated = copy.deepcopy(document)
         try:
             task = resolve_task(updated, selector)
@@ -117,7 +119,7 @@ class TodoApplication:
                 task["deadline_kind"] = request.deadline_kind
             self._change_dependencies(updated, task["id"], request)
             self._change_categories(updated, task["id"], request)
-            return self._checked(updated)
+            return self._checked(updated) if validate else updated
         except (SelectorError, TaskMutationError) as exc:
             raise TodoApplicationError(str(exc)) from exc
 
@@ -153,14 +155,18 @@ class TodoApplication:
                 raise TodoApplicationError(f"category {selector!r} is not assigned")
             removable["tasks"].remove(task_id)
 
-    def complete(self, document: TodoList, selector: str, completed: bool) -> TodoList:
+    def complete(
+        self, document: TodoList, selector: str, completed: bool, *, validate: bool = True
+    ) -> TodoList:
         try:
-            return self._checked(set_completion(document, selector, completed))
+            updated = set_completion(document, selector, completed)
+            return self._checked(updated) if validate else updated
         except TaskMutationError as exc:
             raise TodoApplicationError(str(exc)) from exc
 
-    def remove(self, document: TodoList, selector: str) -> TodoList:
+    def remove(self, document: TodoList, selector: str, *, validate: bool = True) -> TodoList:
         try:
-            return self._checked(remove_task(document, selector))
+            updated = remove_task(document, selector)
+            return self._checked(updated) if validate else updated
         except TaskMutationError as exc:
             raise TodoApplicationError(str(exc)) from exc

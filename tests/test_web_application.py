@@ -17,6 +17,8 @@ sys.path.insert(0, str(ROOT / "lib"))
 from todo_model import TodoList
 from todo_schema import CanonicalSchemaBundle
 from todo_web_application import (
+    RepairRequiredError,
+    TodoStructureError,
     RevisionConflict,
     TodoWebApplication,
     WebEditError,
@@ -178,6 +180,58 @@ class WebApplicationTest(unittest.TestCase):
                 context_category="work",
             )
         self.assertEqual(self.path.read_bytes(), before)
+
+    def test_repair_mode_stages_invalid_edits_until_the_document_is_valid(self) -> None:
+        invalid = document()
+        invalid["tasks"][0]["dependencies"] = [SIBLING]
+        invalid["tasks"][1]["priority"] = "should"
+        original = json.dumps(invalid, indent=2) + "\n"
+        self.path.write_text(original)
+
+        with self.assertRaises(RepairRequiredError):
+            TodoWebApplication(self.path, self.bundle).load()
+
+        service = TodoWebApplication(self.path, self.bundle, repair=True)
+        opened = service.load()
+        self.assertFalse(opened.saved)
+        self.assertTrue(any("less urgent" in issue.message for issue in opened.issues))
+
+        still_invalid = service.edit_task(opened.revision, PARENT, name="Renamed parent")
+        self.assertFalse(still_invalid.saved)
+        self.assertEqual(self.path.read_text(), original)
+
+        repaired = service.edit_task(
+            still_invalid.revision,
+            SIBLING,
+            priority_supplied=True,
+            priority="must",
+        )
+        self.assertTrue(repaired.saved)
+        self.assertFalse(any(issue.severity == "error" for issue in repaired.issues))
+        self.assertEqual(json.loads(self.path.read_text())["tasks"][0]["name"], "Renamed parent")
+
+    def test_structure_error_names_the_invalid_task(self) -> None:
+        invalid = document()
+        invalid["tasks"][0]["completed"] = "no"  # type: ignore[typeddict-item]
+        self.path.write_text(json.dumps(invalid))
+        with self.assertRaises(TodoStructureError) as raised:
+            TodoWebApplication(self.path, self.bundle, repair=True).load()
+        self.assertIn('Task "Parent"', str(raised.exception))
+        self.assertIn("$.tasks[0].completed", str(raised.exception))
+
+    def test_malformed_json_reports_line_and_column(self) -> None:
+        self.path.write_text('{\n  "tasks": [\n}')
+        with self.assertRaises(TodoStructureError) as raised:
+            TodoWebApplication(self.path, self.bundle, repair=True).load()
+        self.assertIn("line 3, column 1", str(raised.exception))
+
+    def test_repair_mode_refuses_to_partially_render_unknown_tasks(self) -> None:
+        invalid = document()
+        invalid["tasks"][0]["dependencies"] = ["00000000-0000-4000-8000-000000000099"]
+        self.path.write_text(json.dumps(invalid))
+        with self.assertRaises(TodoStructureError) as raised:
+            TodoWebApplication(self.path, self.bundle, repair=True).load()
+        self.assertIn("unknown task ID", str(raised.exception))
 
     def test_edits_optional_fields_and_categories(self) -> None:
         initial = self.service.load()

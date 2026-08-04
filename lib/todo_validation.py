@@ -47,17 +47,26 @@ class CanonicalTodoValidator:
         self.validator = bundle.validator
 
     def validate(self, document: Any) -> list[Issue]:
-        issues = [
+        issues = self.validate_schema(document)
+        if issues or not isinstance(document, dict):
+            return issues
+        issues.extend(self.validate_semantics(cast(TodoList, document)))
+        return sorted(issues, key=lambda issue: (issue.location, issue.severity, issue.message))
+
+    def validate_schema(self, document: Any) -> list[Issue]:
+        return [
             Issue("error", json_path(error.absolute_path), error.message)
             for error in sorted(
                 self.validator.iter_errors(document),
                 key=lambda item: (list(item.absolute_path), item.message),
             )
         ]
-        if issues or not isinstance(document, dict):
-            return issues
-        issues.extend(self._validate_semantics(cast(TodoList, document)))
-        return sorted(issues, key=lambda issue: (issue.location, issue.severity, issue.message))
+
+    def validate_semantics(self, document: TodoList) -> list[Issue]:
+        return sorted(
+            self._validate_semantics(document),
+            key=lambda issue: (issue.location, issue.severity, issue.message),
+        )
 
     def _validate_semantics(self, document: TodoList) -> list[Issue]:
         issues: list[Issue] = []
