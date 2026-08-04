@@ -34,6 +34,7 @@
   const openDescriptions = new Set();
   const timers = new Map();
   let pendingDeletion = null;
+  let draggedTask = null;
 
   const escapeHtml = value => String(value).replace(/[&<>"]/g, character => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"
@@ -127,6 +128,7 @@
     const draft = task._draft === true;
     return `<div class="branch" data-id="${id}" data-parent="${parentId || ""}" data-category="${contextCategory || categories[0] || ""}">
       <div class="task-row ${primary.has(id) ? "" : "contextual"}" data-id="${id}" data-parent="${parentId || ""}" data-category="${contextCategory || categories[0] || ""}">
+        ${draft ? `<span class="drag-spacer"></span>` : `<button type="button" class="drag-handle" draggable="${sorting.value === "manual"}" aria-label="Drag to move ${escapeHtml(task.name)}" title="${sorting.value === "manual" ? "Drag to move task" : "Switch to manual sorting to drag"}">⋮⋮</button>`}
         <input class="task-check" type="checkbox" aria-label="Mark ${escapeHtml(task.name || "new task")} complete" ${task.completed ? "checked" : ""} ${draft ? "disabled" : ""}>
         <div class="task-fields">
           <button type="button" class="task-rendered task-name-rendered" ${draft ? "hidden" : ""} aria-label="Edit task name">${inlineMarkup(task.name)}</button>
@@ -151,6 +153,7 @@
         </div>`}
       </div>
       <div class="children">${sortedIds(task.dependencies, tasks).map(child => renderBranch(child, id, contextCategory, primary, visible, tasks, nextSeen)).join("")}</div>
+      ${task.dependencies.length ? `<div class="outdent-drop" data-parent="${parentId || ""}" data-after="${id}" data-category="${contextCategory || categories[0] || ""}">Move out one level after ${escapeHtml(task.name)}</div>` : ""}
     </div>`;
   }
   function renderEmptyCategory(categoryId) {
@@ -335,9 +338,31 @@
     focusRequest = {id, field: "task-name", parentId, category: contextCategory};
     render();
   }
-  function move(row, newParentId, afterId) {
+  function move(row, newParentId, afterId, beforeId = null, contextCategory = null) {
     const branch = row.closest(".branch");
-    return queueSave(() => requestJson(`/api/tasks/${encodeURIComponent(row.dataset.id)}/move`, {method: "POST", body: JSON.stringify({revision, old_parent_id: row.dataset.parent || null, new_parent_id: newParentId, after_id: afterId, context_category: branch.dataset.category || null})}), true);
+    return queueSave(() => requestJson(`/api/tasks/${encodeURIComponent(row.dataset.id)}/move`, {method: "POST", body: JSON.stringify({revision, old_parent_id: row.dataset.parent || null, new_parent_id: newParentId, after_id: afterId, before_id: beforeId, context_category: contextCategory || branch.dataset.category || null})}), true);
+  }
+
+  function clearDropIndicators() {
+    checklist.querySelectorAll(".drop-before, .drop-after, .drop-child, .drop-outdent").forEach(element =>
+      element.classList.remove("drop-before", "drop-after", "drop-child", "drop-outdent")
+    );
+  }
+  function dropPosition(row, clientY) {
+    const bounds = row.getBoundingClientRect();
+    const fraction = (clientY - bounds.top) / bounds.height;
+    return fraction < .3 ? "before" : fraction > .7 ? "after" : "child";
+  }
+  function moveDragged(newParentId, afterId, beforeId, contextCategory) {
+    if (!draggedTask) return;
+    const source = checklist.querySelector(`.task-row[data-id="${CSS.escape(draggedTask.id)}"][data-parent="${CSS.escape(draggedTask.parentId || "")}"][data-category="${CSS.escape(draggedTask.category || "")}"]`)
+      || checklist.querySelector(`.task-row[data-id="${CSS.escape(draggedTask.id)}"]`);
+    if (!source) return;
+    if (!newParentId && !categoriesFor(draggedTask.id).includes(contextCategory)) {
+      showError(new Error("Assign this task to the destination category before moving it there."));
+      return;
+    }
+    move(source, newParentId, afterId, beforeId, contextCategory);
   }
   function reorderTask(row, offset) {
     if (sorting.value !== "manual") { showError(new Error("Switch to manual sorting before reordering tasks.")); return; }
@@ -397,6 +422,46 @@
   });
   grouping.addEventListener("change", render);
   sorting.addEventListener("change", render);
+  checklist.addEventListener("dragstart", event => {
+    const handle = event.target.closest(".drag-handle");
+    if (!handle || sorting.value !== "manual") { event.preventDefault(); return; }
+    const row = handle.closest(".task-row");
+    draggedTask = {id: row.dataset.id, parentId: row.dataset.parent || null, category: row.dataset.category || null};
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", row.dataset.id);
+    requestAnimationFrame(() => { row.classList.add("dragging"); checklist.classList.add("drag-active"); });
+  });
+  checklist.addEventListener("dragover", event => {
+    if (!draggedTask || sorting.value !== "manual") return;
+    const outdent = event.target.closest(".outdent-drop");
+    const row = event.target.closest(".task-row");
+    if (outdent?.dataset.after === draggedTask.id) return;
+    if (!outdent && (!row || row.dataset.id === draggedTask.id)) return;
+    event.preventDefault(); event.dataTransfer.dropEffect = "move"; clearDropIndicators();
+    if (outdent) outdent.classList.add("drop-outdent");
+    else row.classList.add(`drop-${dropPosition(row, event.clientY)}`);
+  });
+  checklist.addEventListener("drop", event => {
+    if (!draggedTask) return;
+    const outdent = event.target.closest(".outdent-drop");
+    const row = event.target.closest(".task-row");
+    if (outdent?.dataset.after === draggedTask.id) return;
+    if (!outdent && (!row || row.dataset.id === draggedTask.id)) return;
+    event.preventDefault();
+    if (outdent) {
+      moveDragged(outdent.dataset.parent || null, outdent.dataset.after, null, outdent.dataset.category);
+    } else {
+      const position = dropPosition(row, event.clientY);
+      const parent = position === "child" ? row.dataset.id : row.dataset.parent || null;
+      moveDragged(parent, position === "after" ? row.dataset.id : null, position === "before" ? row.dataset.id : null, row.dataset.category);
+    }
+    clearDropIndicators();
+  });
+  checklist.addEventListener("dragend", () => {
+    clearDropIndicators(); checklist.classList.remove("drag-active");
+    checklist.querySelectorAll(".dragging").forEach(element => element.classList.remove("dragging"));
+    draggedTask = null;
+  });
   checklist.addEventListener("pointerdown", event => { if (!event.target.closest(".menu-panel") && !event.target.closest(".menu-toggle")) closeMenus(); }, true);
   document.addEventListener("pointerdown", event => { if (!event.target.closest(".menu-panel") && !event.target.closest(".menu-toggle")) closeMenus(); }, true);
   checklist.addEventListener("click", event => {

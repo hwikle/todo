@@ -191,6 +191,37 @@ class WebAdapterTest(unittest.TestCase):
         )
         self.assertEqual(removed.status_code, 200, removed.get_json())
 
+    def test_move_route_accepts_before_placement(self) -> None:
+        payload = self.snapshot()
+        added = self.client.post(
+            "/api/tasks",
+            json={
+                "revision": payload["revision"],
+                "name": "Second",
+                "categories": ["work"],
+                "priority": "should",
+                "parent_id": None,
+                "after_id": TASK_ID,
+                "context_category": "work",
+            },
+        ).get_json()
+        moved = self.client.post(
+            f"/api/tasks/{added['created_id']}/move",
+            json={
+                "revision": added["revision"],
+                "old_parent_id": None,
+                "new_parent_id": None,
+                "after_id": None,
+                "before_id": TASK_ID,
+                "context_category": "work",
+            },
+        )
+        self.assertEqual(moved.status_code, 200, moved.get_json())
+        self.assertEqual(
+            moved.get_json()["document"]["category_memberships"][0]["tasks"],
+            [added["created_id"], TASK_ID],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

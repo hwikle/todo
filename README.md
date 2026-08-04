@@ -98,6 +98,13 @@ and priority filters can be combined;
 matching tasks are the primary results, while all of their transitive
 dependencies remain visible.
 
+In manual sort mode, hover over a task and drag its handle to move it. Drop near
+the top or bottom of another task to place it before or after that task, or drop
+in the center to make it a dependency. While dragging within a nested branch,
+an explicit target appears for moving the task out one level. Deadline-sorted
+views are read-only with respect to ordering; switch back to manual sorting to
+drag or use Option+Up and Option+Down.
+
 Task priority is visible alongside each task. Deadlines use an explicit year,
 month, or day precision; time is available only for day-precision deadlines.
 Sorting by deadline leaves undated tasks last and treats a partial deadline as

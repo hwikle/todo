@@ -121,6 +121,7 @@ class WebApplicationTest(unittest.TestCase):
             old_parent_id=None,
             new_parent_id=PARENT,
             after_id=None,
+            before_id=None,
             context_category="work",
         )
         with self.assertRaises(TaskRequiredError) as raised:
@@ -145,6 +146,7 @@ class WebApplicationTest(unittest.TestCase):
                 old_parent_id=None,
                 new_parent_id=SIBLING,
                 after_id=None,
+                before_id=None,
                 context_category="work",
             )
         self.assertEqual(self.path.read_bytes(), before)
@@ -179,11 +181,39 @@ class WebApplicationTest(unittest.TestCase):
             old_parent_id=None,
             new_parent_id=PARENT,
             after_id=None,
+            before_id=None,
             context_category="work",
         )
         self.assertEqual(nested.document["tasks"][0]["dependencies"], [SIBLING])
         detached = self.service.detach_task(nested.revision, SIBLING, PARENT)
         self.assertEqual(detached.document["tasks"][0]["dependencies"], [])
+
+    def test_move_can_place_a_task_before_the_first_sibling(self) -> None:
+        initial = self.service.load()
+        moved = self.service.move_task(
+            initial.revision,
+            SIBLING,
+            old_parent_id=None,
+            new_parent_id=None,
+            after_id=None,
+            before_id=PARENT,
+            context_category="work",
+        )
+        self.assertEqual(
+            moved.document["category_memberships"][0]["tasks"],
+            [SIBLING, PARENT],
+        )
+
+        with self.assertRaises(WebEditError):
+            self.service.move_task(
+                moved.revision,
+                SIBLING,
+                old_parent_id=None,
+                new_parent_id=None,
+                after_id=PARENT,
+                before_id=PARENT,
+                context_category="work",
+            )
 
     def test_categories_are_managed_inside_the_list(self) -> None:
         initial = self.service.load()

@@ -156,7 +156,9 @@ class TodoWebApplication:
             )
             new_task = next(task for task in updated["tasks"] if task["id"] not in before)
             created_id = new_task["id"]
-            self._position(updated, new_task["id"], parent_id, after_id, context_category)
+            self._position(
+                updated, new_task["id"], parent_id, after_id, None, context_category
+            )
             return updated
 
         snapshot = self._change(expected_revision, operation)
@@ -218,6 +220,7 @@ class TodoWebApplication:
         old_parent_id: Optional[str],
         new_parent_id: Optional[str],
         after_id: Optional[str],
+        before_id: Optional[str],
         context_category: Optional[str],
     ) -> DocumentSnapshot:
         def operation(document: TodoList) -> TodoList:
@@ -228,7 +231,9 @@ class TodoWebApplication:
                 if task_id not in old_parent["dependencies"]:
                     raise WebEditError("task is not a dependency of its displayed parent")
                 old_parent["dependencies"].remove(task_id)
-            self._position(updated, task_id, new_parent_id, after_id, context_category)
+            self._position(
+                updated, task_id, new_parent_id, after_id, before_id, context_category
+            )
             return updated
 
         return self._change(expected_revision, operation)
@@ -371,16 +376,21 @@ class TodoWebApplication:
         task_id: str,
         parent_id: Optional[str],
         after_id: Optional[str],
+        before_id: Optional[str],
         context_category: Optional[str],
     ) -> None:
+        if after_id is not None and before_id is not None:
+            raise WebEditError("task placement cannot specify both before and after")
         if parent_id:
             parent = resolve_task(document, parent_id)
             if task_id in parent["dependencies"]:
                 parent["dependencies"].remove(task_id)
-            position = (
-                parent["dependencies"].index(after_id) + 1
-                if after_id in parent["dependencies"] else len(parent["dependencies"])
-            )
+            if before_id in parent["dependencies"]:
+                position = parent["dependencies"].index(before_id)
+            elif after_id in parent["dependencies"]:
+                position = parent["dependencies"].index(after_id) + 1
+            else:
+                position = len(parent["dependencies"])
             parent["dependencies"].insert(position, task_id)
             return
         if context_category is None:
@@ -392,10 +402,12 @@ class TodoWebApplication:
         if membership is None or task_id not in membership["tasks"]:
             raise WebEditError("task is not assigned to the displayed category")
         membership["tasks"].remove(task_id)
-        position = (
-            membership["tasks"].index(after_id) + 1
-            if after_id in membership["tasks"] else len(membership["tasks"])
-        )
+        if before_id in membership["tasks"]:
+            position = membership["tasks"].index(before_id)
+        elif after_id in membership["tasks"]:
+            position = membership["tasks"].index(after_id) + 1
+        else:
+            position = len(membership["tasks"])
         membership["tasks"].insert(position, task_id)
 
 

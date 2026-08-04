@@ -46,8 +46,15 @@ button, select, input { outline-offset: 2px; }
 .group-title { margin: 0 0 10px; font-size: 1.35rem; font-weight: 500; }
 .priority-title { margin: 16px 0 5px; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 500; }
 .branch { display: block; }
-.task-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 6px; align-items: start; min-height: 29px; padding: 2px 0; }
+.task-row { display: grid; grid-template-columns: 18px 26px minmax(0, 1fr) auto; gap: 6px; align-items: start; min-height: 29px; padding: 2px 0; }
 .task-row.contextual { opacity: .72; }
+.drag-handle { opacity: 0; width: 18px; margin-top: 2px; padding: 0; border: 0; background: transparent; color: var(--muted); cursor: grab; line-height: 20px; letter-spacing: -3px; }
+.task-row:hover .drag-handle, .task-row:focus-within .drag-handle { opacity: 1; }
+.drag-handle:active { cursor: grabbing; }
+.task-row.dragging { opacity: .35; }
+.task-row.drop-before { box-shadow: inset 0 3px 0 var(--selected); }
+.task-row.drop-after { box-shadow: inset 0 -3px 0 var(--selected); }
+.task-row.drop-child { border-radius: 5px; background: var(--soft); outline: 2px solid var(--selected); }
 .task-check { appearance: none; width: 18px; height: 18px; margin: 4px 0 0; border: 1.5px solid var(--muted); border-radius: 5px; cursor: pointer; display: grid; place-items: center; }
 .task-check:checked { background: var(--selected); border-color: var(--selected); }
 .task-check:checked::after { content: "✓"; color: var(--selected-text); font-size: 12px; }
@@ -76,9 +83,12 @@ button, select, input { outline-offset: 2px; }
 .due-controls [hidden] { display: none; }
 .remove-task { width: fit-content; border: 0; padding: 3px 0; background: transparent; color: var(--danger); cursor: pointer; }
 .children { margin-left: 28px; }
+.outdent-drop { display: none; margin: 2px 0 2px 28px; padding: 5px 8px; border: 1px dashed var(--line); border-radius: 5px; color: var(--muted); font-size: .8rem; }
+.drag-active .outdent-drop { display: block; }
+.outdent-drop.drop-outdent { border-color: var(--selected); background: var(--soft); color: var(--text); }
 .empty { color: var(--muted); padding: 22px 0; }
-.empty-category-row { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 6px; min-height: 29px; padding: 2px 0; }
-.empty-category-row::before { content: ""; }
+.empty-category-row { min-height: 29px; padding: 2px 0 2px 56px; }
+.empty-category-name { width: 100%; }
 .keyboard-help { color: var(--muted); margin: 17px 0 0; }
 dialog { width: min(560px, 90vw); border: 1px solid var(--line); border-radius: 10px; padding: 18px; background: var(--page); color: var(--text); }
 dialog::backdrop { background: light-dark(#0004, #0008); }
@@ -96,6 +106,6 @@ dialog h2 { margin: 0 0 14px; font-size: 1.25rem; font-weight: 500; }
   #todo-app { padding: 14px 12px 28px; }
   .toolbar { grid-template-columns: 1fr; }
   .grouping, .sorting, #manage-categories, #save-status { grid-column: 1; grid-row: auto; text-align: left; }
-  .task-row { grid-template-columns: 25px minmax(0, 1fr); }
-  .task-meta { grid-column: 2; }
+  .task-row { grid-template-columns: 18px 25px minmax(0, 1fr); }
+  .task-meta { grid-column: 3; }
 }

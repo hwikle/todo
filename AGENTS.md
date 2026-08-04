@@ -39,6 +39,9 @@ persisted in canonical JSON.
 The browser owns in-list category management, ordering and deadline-sort views,
 and display-only inline-code formatting. Sorting must not rewrite manual order;
 partial deadlines retain their original precision in storage.
+Drag-and-drop and keyboard movement must call the same application-layer move
+operations, identify occurrences by task ID plus displayed parent and category,
+and remain disabled in non-manual sort views.
 
 The browser must remain independently usable: an explicitly named missing list
 path enters a first-run state and is created only after an explicit browser

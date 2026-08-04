@@ -128,6 +128,7 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
             old_parent_id=_optional_text(data, "old_parent_id"),
             new_parent_id=_optional_text(data, "new_parent_id"),
             after_id=_optional_text(data, "after_id"),
+            before_id=_optional_text(data, "before_id"),
             context_category=_optional_text(data, "context_category"),
         )
         return response_for(snapshot)
