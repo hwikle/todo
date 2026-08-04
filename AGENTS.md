@@ -60,6 +60,10 @@ explicit repair mode. Repair edits remain in memory until the entire document
 is valid, then save atomically. Malformed, schema-invalid, or ambiguously
 identifiable documents must fail with actionable source-file diagnostics rather
 than being partially rendered.
+Browser presentation configuration is explicit, schema-validated, and separate
+from canonical TODO data. Priority colors must remain textual badges as well as
+color cues; validation errors use a separate visual treatment and identify
+every affected canonical task occurrence.
 
 ## Canonical invariants
 

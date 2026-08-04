@@ -26,6 +26,8 @@
   const message = document.getElementById("message");
   const repairSummary = document.getElementById("repair-summary");
   const repairIssues = document.getElementById("repair-issues");
+  const repairTitle = document.getElementById("repair-title");
+  const repairExplanation = document.getElementById("repair-explanation");
   const dropIndicator = document.createElement("div");
   dropIndicator.className = "drop-indicator";
   dropIndicator.hidden = true;
@@ -33,6 +35,9 @@
   let revision;
   let priorities = [];
   let repairMode = false;
+  let repairCompletionShown = false;
+  let priorityColors = {};
+  let invalidTaskIds = new Set();
   let saveQueue = Promise.resolve();
   let focusRequest = null;
   const selectedCategories = new Set();
@@ -109,6 +114,10 @@
     if (precision === "day") return `<input data-field="due-value" type="date" value="${escapeHtml(value)}">`;
     return `<input data-field="due-value" type="text" value="" disabled aria-label="No due date">`;
   }
+  function priorityStyle(priority) {
+    const colors = priorityColors[priority];
+    return colors ? ` style="--priority-accent: light-dark(${colors.light}, ${colors.dark})"` : "";
+  }
   function effectiveDue(task) {
     if (!task.due) return null;
     const year = task.due.year;
@@ -136,13 +145,15 @@
     const priorityOptions = [`<option value="">Unprioritized</option>`, ...priorities.map(priority => `<option value="${escapeHtml(priority)}" ${task.priority === priority ? "selected" : ""}>${escapeHtml(priority[0].toUpperCase() + priority.slice(1))}</option>`)].join("");
     const draft = task._draft === true;
     return `<div class="branch" data-id="${id}" data-parent="${parentId || ""}" data-category="${contextCategory || categories[0] || ""}">
-      <div class="task-row ${primary.has(id) ? "" : "contextual"}" data-id="${id}" data-parent="${parentId || ""}" data-category="${contextCategory || categories[0] || ""}">
+      <div class="task-row ${primary.has(id) ? "" : "contextual"} ${invalidTaskIds.has(id) ? "invalid" : ""}" data-id="${id}" data-parent="${parentId || ""}" data-category="${contextCategory || categories[0] || ""}">
         ${draft ? `<span class="drag-spacer"></span>` : `<button type="button" class="drag-handle" draggable="${sorting.value === "manual"}" aria-label="Drag to move ${escapeHtml(task.name)}" title="${sorting.value === "manual" ? "Drag to move task" : "Switch to manual sorting to drag"}">⋮⋮</button>`}
         <input class="task-check" type="checkbox" aria-label="Mark ${escapeHtml(task.name || "new task")} complete" ${task.completed ? "checked" : ""} ${draft ? "disabled" : ""}>
         <div class="task-fields">
           <div class="task-heading">
             <button type="button" class="task-rendered task-name-rendered" ${draft ? "hidden" : ""} aria-label="Edit task name">${inlineMarkup(task.name)}</button>
             <input class="task-name" value="${escapeHtml(task.name)}" placeholder="New task" aria-label="Task name" ${draft ? "" : "hidden"}>
+            ${draft ? "" : `<span class="priority-indicator"${priorityStyle(task.priority)}>${escapeHtml(task.priority ? task.priority[0].toUpperCase() + task.priority.slice(1) : "Unprioritized")}</span>`}
+            ${invalidTaskIds.has(id) ? `<span class="validation-marker" aria-label="This task has a validation error" title="Validation error">!</span>` : ""}
             ${draft ? "" : `<div class="task-menu"><button class="menu-toggle" type="button" aria-label="Task options" aria-expanded="false">···</button>
               <div class="menu-panel" hidden>
                 <label>Priority<select data-field="priority">${priorityOptions}</select></label>
@@ -158,9 +169,9 @@
               </div>
             </div>`}
           </div>
+          ${task.due ? `<span class="due ${task.deadline_kind || ""}">Due ${escapeHtml(dueText(task))}</span>` : ""}
           ${descriptionShown ? `<button type="button" class="task-rendered task-description-rendered" aria-label="Edit task description" ${task.description ? "" : "hidden"}>${inlineMarkup(task.description || "")}</button><input class="task-description" value="${escapeHtml(task.description || "")}" placeholder="Description" aria-label="Task description" ${task.description ? "hidden" : ""}>` : ""}
         </div>
-        ${draft ? `<div class="task-meta"></div>` : `<div class="task-meta">${grouping.value !== "priority" ? `<span class="priority-indicator">${escapeHtml(task.priority ? task.priority[0].toUpperCase() + task.priority.slice(1) : "Unprioritized")}</span>` : ""}${task.due ? `<span class="due ${task.deadline_kind || ""}">${escapeHtml(dueText(task))}</span>` : ""}</div>`}
       </div>
       <div class="children">${sortedIds(task.dependencies, tasks).map(child => renderBranch(child, id, contextCategory, primary, visible, tasks, nextSeen)).join("")}</div>
     </div>`;
@@ -274,9 +285,20 @@
   }
   function clearError() { message.hidden = true; message.textContent = ""; }
   function updateRepairState(data) {
+    priorityColors = data.priority_colors || priorityColors;
+    invalidTaskIds = new Set((data.issues || []).flatMap(issue => issue.severity === "error" ? (issue.task_ids || []) : []));
     repairMode = data.repair === true;
     const errors = (data.issues || []).filter(issue => issue.severity === "error");
-    repairSummary.hidden = !repairMode || !errors.length;
+    if (data.repair_completed === true) repairCompletionShown = true;
+    repairSummary.classList.toggle("success", repairCompletionShown && !repairMode);
+    if (repairMode && errors.length) {
+      repairTitle.textContent = "This list is open in repair mode.";
+      repairExplanation.textContent = "Changes will remain in this browser and will be saved when every error is resolved.";
+    } else if (repairCompletionShown) {
+      repairTitle.textContent = "All issues resolved.";
+      repairExplanation.textContent = "Your changes were saved, and repair mode has ended. Normal validation is now active.";
+    }
+    repairSummary.hidden = !(repairMode && errors.length) && !repairCompletionShown;
     repairIssues.innerHTML = errors.map(issue => `<li>${issue.label ? `${escapeHtml(issue.label)} · ` : ""}<code>${escapeHtml(issue.location)}</code>: ${escapeHtml(issue.message)}</li>`).join("");
     saveStatus.textContent = data.saved === false ? "Repairs not yet saved" : "Saved";
   }
@@ -680,7 +702,7 @@
   checklist.addEventListener("change", event => {
     const row = event.target.closest(".task-row"); if (!row) return;
     const id = row.dataset.id;
-    if (event.target.matches(".task-check")) { patchTask(id, {completed: event.target.checked}).catch(() => { event.target.checked = !event.target.checked; }); return; }
+    if (event.target.matches(".task-check")) { patchTask(id, {completed: event.target.checked}, true).catch(() => { event.target.checked = !event.target.checked; }); return; }
     if (event.target.dataset.field === "priority") {
       menuRequest = menuState(row);
       patchTask(id, {priority: event.target.value || null}, true);
@@ -757,7 +779,7 @@
   function startEditor(data) {
     documentState = data.document; revision = data.revision; priorities = data.priorities;
     firstRun.hidden = true; editor.hidden = false;
-    renderFilters(); render(); updateRepairState(data); app.setAttribute("aria-busy", "false");
+    updateRepairState(data); renderFilters(); render(); app.setAttribute("aria-busy", "false");
   }
   function showCreation(data) {
     priorities = data.priorities;

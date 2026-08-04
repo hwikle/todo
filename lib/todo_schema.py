@@ -19,6 +19,7 @@ class SchemaConfigurationError(Exception):
 
 class CanonicalSchemaBundle:
     REQUIRED = {
+        "browser-config.schema.json",
         "category.schema.json",
         "due-date.schema.json",
         "priority.schema.json",

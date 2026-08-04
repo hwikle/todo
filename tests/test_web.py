@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "lib"))
 from todo_model import TodoList
 from todo_schema import CanonicalSchemaBundle
 from todo_web import create_app
+from todo_web_config import BrowserConfigError, load_browser_config
 
 
 TASK_ID = "00000000-0000-4000-8000-000000000001"
@@ -117,6 +118,8 @@ class WebAdapterTest(unittest.TestCase):
         self.assertEqual(payload["priorities"], ["must", "should", "could"])
         self.assertIsInstance(payload["revision"], str)
         self.assertTrue(payload["exists"])
+        colors = cast(dict[str, dict[str, str]], payload["priority_colors"])
+        self.assertEqual(colors["must"]["light"], "#A65A00")
 
     def test_add_returns_the_exact_created_id_for_duplicate_names(self) -> None:
         payload = self.snapshot()
@@ -301,6 +304,7 @@ class WebAdapterTest(unittest.TestCase):
         payload = app.test_client().get("/api/todo").get_json()
         self.assertFalse(payload["saved"])
         self.assertEqual(payload["issues"][0]["label"], 'Task "Task"')
+        self.assertEqual(payload["issues"][0]["task_ids"], [TASK_ID, dependency_id])
 
     def test_startup_directs_schema_errors_to_source_validation(self) -> None:
         invalid = document()
@@ -316,6 +320,52 @@ class WebAdapterTest(unittest.TestCase):
         self.assertIn(f'Task "{TASK_ID}"', result.stderr)
         self.assertIn("$.tasks[0]", result.stderr)
         self.assertIn(f"todo list validate {self.path}", result.stderr)
+
+    def test_browser_configuration_is_schema_validated_and_merged_with_defaults(self) -> None:
+        config_path = Path(self.temporary.name) / "browser.json"
+        config_path.write_text(json.dumps({
+            "priority_colors": {
+                "must": {"light": "#112233", "dark": "#DDEEFF"}
+            }
+        }))
+        config = load_browser_config(config_path, self.bundle)
+        self.assertEqual(config["priority_colors"]["must"]["dark"], "#DDEEFF")
+        self.assertIn("should", config["priority_colors"])
+
+        config_path.write_text(json.dumps({
+            "priority_colors": {
+                "urgent": {"light": "red", "dark": "#000000"}
+            }
+        }))
+        with self.assertRaises(BrowserConfigError) as raised:
+            load_browser_config(config_path, self.bundle)
+        self.assertIn("invalid browser configuration", str(raised.exception))
+        self.assertIn("priority_colors", str(raised.exception))
+
+        result = subprocess.run(
+            [
+                str(ROOT / "bin" / "todo"),
+                "serve",
+                str(self.path),
+                "--config",
+                str(config_path),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("invalid browser configuration", result.stderr)
+
+    def test_browser_assets_place_due_dates_beneath_names_and_style_badges(self) -> None:
+        script = (ROOT / "static" / "todo.js").read_text()
+        stylesheet = (ROOT / "static" / "todo.css").read_text()
+        self.assertLess(script.index('class="priority-indicator"'), script.index('class="task-menu"'))
+        self.assertIn('class="due ${task.deadline_kind', script)
+        self.assertIn("--priority-accent", stylesheet)
+        self.assertIn(".task-row.invalid", stylesheet)
+        self.assertIn("All issues resolved.", script)
+        self.assertIn("Normal validation is now active.", script)
 
 
 if __name__ == "__main__":

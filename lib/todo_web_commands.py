@@ -15,6 +15,7 @@ from todo_web_application import (
     WebEditError,
     format_issues,
 )
+from todo_web_config import BrowserConfigError, load_browser_config
 
 
 def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -31,11 +32,18 @@ def configure(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
         action="store_true",
         help="open a structurally valid list with semantic errors for repair",
     )
+    serve.add_argument(
+        "--config",
+        type=Path,
+        metavar="FILE",
+        help="explicit browser-presentation JSON configuration",
+    )
 
 
 def run(args: argparse.Namespace, bundle: CanonicalSchemaBundle) -> int:
     try:
-        app = create_app(args.file, bundle, repair=args.repair)
+        config = load_browser_config(args.config, bundle)
+        app = create_app(args.file, bundle, repair=args.repair, config=config)
         app.run(host=args.host, port=args.port, debug=False)
         return 0
     except RepairRequiredError as exc:
@@ -49,7 +57,7 @@ def run(args: argparse.Namespace, bundle: CanonicalSchemaBundle) -> int:
         command = f"todo list validate {shlex.quote(str(args.file))}"
         print(f"\nEdit the file directly, then validate it again:\n\n    {command}", file=sys.stderr)
         return 1
-    except (OSError, WebEditError, ValueError) as exc:
+    except (OSError, BrowserConfigError, WebEditError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

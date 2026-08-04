@@ -91,7 +91,8 @@ can represent safely, normal startup prints the errors and the exact command
 needed to reopen it with `--repair`.
 Repair mode renders the checklist and keeps edits in browser memory while any
 errors remain. Once the complete document is valid, it is written atomically
-and ordinary autosaving resumes. Malformed JSON and documents that do not match
+and ordinary autosaving resumes. The browser confirms that repair mode has
+ended; no server restart is required. Malformed JSON and documents that do not match
 the TODO-list schema are not rendered; startup reports detailed JSON or
 model-aware schema diagnostics and directs the user to edit the source file.
 The same applies to ambiguous identities or broken references that would make a
@@ -140,6 +141,26 @@ The server listens only on `127.0.0.1` by default. Flask identifies it as a
 development server because this command is intended for a single-user local
 workflow, not deployment on a shared or public network. `--host` and `--port`
 are available when an explicit alternative is needed.
+
+Priority badges use accessible built-in light and dark colors. Override them
+with an explicitly selected, schema-validated browser configuration:
+
+```json
+{
+  "priority_colors": {
+    "must": {"light": "#A65A00", "dark": "#F0A23A"},
+    "should": {"light": "#245AA5", "dark": "#78A9E8"},
+    "could": {"light": "#27705B", "dark": "#73BFA6"}
+  }
+}
+```
+
+```text
+todo serve path/to/todo.json --config path/to/browser.json
+```
+
+Colors must use six-digit hexadecimal notation. Configuration is never
+discovered implicitly, and omitted priority entries retain their defaults.
 
 ## Canonical model and validation
 

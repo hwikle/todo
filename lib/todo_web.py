@@ -15,18 +15,26 @@ from todo_web_application import (
     WebEditError,
     snapshot_payload,
 )
+from todo_web_config import BrowserConfig, load_browser_config
 
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def create_app(path: Path, bundle: CanonicalSchemaBundle, *, repair: bool = False) -> Flask:
+def create_app(
+    path: Path,
+    bundle: CanonicalSchemaBundle,
+    *,
+    repair: bool = False,
+    config: Optional[BrowserConfig] = None,
+) -> Flask:
     app = Flask(
         __name__,
         template_folder=str(ROOT / "templates"),
         static_folder=str(ROOT / "static"),
     )
     service = TodoWebApplication(path, bundle, repair=repair)
+    presentation = config or load_browser_config(None, bundle)
     if service.exists():
         service.load()
 
@@ -34,7 +42,8 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle, *, repair: bool = Fals
         payload = snapshot_payload(snapshot)
         payload["exists"] = True
         payload["priorities"] = list(bundle.priority_policy.order)
-        payload["repair"] = repair
+        payload["repair"] = service.repair
+        payload["priority_colors"] = presentation["priority_colors"]
         return jsonify(payload)
 
     @app.errorhandler(RevisionConflict)
@@ -56,7 +65,8 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle, *, repair: bool = Fals
         if not service.exists():
             payload = service.creation_state()
             payload["priorities"] = list(bundle.priority_policy.order)
-            payload["repair"] = repair
+            payload["repair"] = service.repair
+            payload["priority_colors"] = presentation["priority_colors"]
             return jsonify(payload)
         return response_for(service.load())
 
@@ -84,7 +94,8 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle, *, repair: bool = Fals
         payload = snapshot_payload(result.snapshot)
         payload["exists"] = True
         payload["priorities"] = list(bundle.priority_policy.order)
-        payload["repair"] = repair
+        payload["repair"] = service.repair
+        payload["priority_colors"] = presentation["priority_colors"]
         payload["created_id"] = result.task_id
         return jsonify(payload)
 
