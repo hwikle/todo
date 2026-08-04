@@ -20,13 +20,13 @@ from todo_web_application import (
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
+def create_app(path: Path, bundle: CanonicalSchemaBundle, *, repair: bool = False) -> Flask:
     app = Flask(
         __name__,
         template_folder=str(ROOT / "templates"),
         static_folder=str(ROOT / "static"),
     )
-    service = TodoWebApplication(path, bundle)
+    service = TodoWebApplication(path, bundle, repair=repair)
     if service.exists():
         service.load()
 
@@ -34,6 +34,7 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
         payload = snapshot_payload(snapshot)
         payload["exists"] = True
         payload["priorities"] = list(bundle.priority_policy.order)
+        payload["repair"] = repair
         return jsonify(payload)
 
     @app.errorhandler(RevisionConflict)
@@ -55,6 +56,7 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
         if not service.exists():
             payload = service.creation_state()
             payload["priorities"] = list(bundle.priority_policy.order)
+            payload["repair"] = repair
             return jsonify(payload)
         return response_for(service.load())
 
@@ -82,6 +84,7 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
         payload = snapshot_payload(result.snapshot)
         payload["exists"] = True
         payload["priorities"] = list(bundle.priority_policy.order)
+        payload["repair"] = repair
         payload["created_id"] = result.task_id
         return jsonify(payload)
 

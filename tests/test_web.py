@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import ClassVar, cast
+from typing import Any, ClassVar, cast
 
 from flask.testing import FlaskClient
 
@@ -268,6 +269,51 @@ class WebAdapterTest(unittest.TestCase):
             moved.get_json()["document"]["category_memberships"][0]["tasks"],
             [added["created_id"], TASK_ID],
         )
+
+    def test_startup_suggests_repair_for_semantic_errors(self) -> None:
+        invalid = document()
+        dependency_id = "00000000-0000-4000-8000-000000000002"
+        invalid["tasks"][0]["priority"] = "must"
+        invalid["tasks"][0]["dependencies"] = [dependency_id]
+        invalid["tasks"].append({
+            "id": dependency_id,
+            "name": "Less urgent dependency",
+            "priority": "should",
+            "completed": False,
+            "dependencies": [],
+        })
+        invalid["category_memberships"][0]["tasks"].append(dependency_id)
+        self.path.write_text(json.dumps(invalid))
+        result = subprocess.run(
+            [str(ROOT / "bin" / "todo"), "serve", str(self.path)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("semantic validation errors", result.stderr)
+        self.assertIn(f"todo serve {self.path} --repair", result.stderr)
+
+        app = create_app(self.path, self.bundle, repair=True)
+        app.config.update(TESTING=True)
+        payload = app.test_client().get("/api/todo").get_json()
+        self.assertFalse(payload["saved"])
+        self.assertEqual(payload["issues"][0]["label"], 'Task "Task"')
+
+    def test_startup_directs_schema_errors_to_source_validation(self) -> None:
+        invalid = document()
+        cast(dict[str, Any], invalid["tasks"][0]).pop("name")
+        self.path.write_text(json.dumps(invalid))
+        result = subprocess.run(
+            [str(ROOT / "bin" / "todo"), "serve", str(self.path), "--repair"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'Task "{TASK_ID}"', result.stderr)
+        self.assertIn("$.tasks[0]", result.stderr)
+        self.assertIn(f"todo list validate {self.path}", result.stderr)
 
 
 if __name__ == "__main__":

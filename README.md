@@ -86,6 +86,17 @@ Starting the server alone does not create the file. The
 command does not search for a list or generate Markdown, and it edits only the
 explicit path named on the command line.
 
+If a structurally valid list has semantic validation errors that the checklist
+can represent safely, normal startup prints the errors and the exact command
+needed to reopen it with `--repair`.
+Repair mode renders the checklist and keeps edits in browser memory while any
+errors remain. Once the complete document is valid, it is written atomically
+and ordinary autosaving resumes. Malformed JSON and documents that do not match
+the TODO-list schema are not rendered; startup reports detailed JSON or
+model-aware schema diagnostics and directs the user to edit the source file.
+The same applies to ambiguous identities or broken references that would make a
+partial checklist misleading.
+
 The checklist autosaves task names, descriptions, completion state, categories,
 priorities, deadlines, ordering, and nesting. Press Enter in a task name to create a new
 sibling, Tab to make it a subtask of the preceding task, Shift+Tab to move it

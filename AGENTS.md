@@ -55,6 +55,11 @@ first-task line. Client-side
 identity, focus restoration, edits, nesting, and deletion must use canonical
 task IDs and occurrence context, never task names or whole-document ID-set
 inference.
+Schema-valid lists with representable semantic errors are opened only through
+explicit repair mode. Repair edits remain in memory until the entire document
+is valid, then save atomically. Malformed, schema-invalid, or ambiguously
+identifiable documents must fail with actionable source-file diagnostics rather
+than being partially rendered.
 
 ## Canonical invariants
 

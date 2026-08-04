@@ -41,6 +41,10 @@ button, select, input { outline-offset: 2px; }
 #manage-categories { grid-column: 2; grid-row: 2; width: fit-content; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 #save-status { grid-column: 3; grid-row: 2; color: var(--muted); text-align: right; }
 #message { margin: 12px 0 0; color: var(--danger); }
+.repair-summary { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--danger); border-radius: 8px; }
+.repair-summary p { margin: 5px 0 8px; color: var(--muted); }
+.repair-summary ul { margin: 0; padding-left: 21px; }
+.repair-summary li + li { margin-top: 4px; }
 
 .check-group { padding-top: 22px; }
 .group-title { margin: 0 0 10px; font-size: 1.35rem; font-weight: 500; }

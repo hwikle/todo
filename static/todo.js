@@ -24,12 +24,15 @@
   const cancelDelete = document.getElementById("cancel-delete");
   const saveStatus = document.getElementById("save-status");
   const message = document.getElementById("message");
+  const repairSummary = document.getElementById("repair-summary");
+  const repairIssues = document.getElementById("repair-issues");
   const dropIndicator = document.createElement("div");
   dropIndicator.className = "drop-indicator";
   dropIndicator.hidden = true;
   let documentState;
   let revision;
   let priorities = [];
+  let repairMode = false;
   let saveQueue = Promise.resolve();
   let focusRequest = null;
   const selectedCategories = new Set();
@@ -66,7 +69,8 @@
     const candidateSet = new Set(candidates);
     const nested = new Set();
     for (const id of candidates) for (const child of descendants(id, tasks)) if (candidateSet.has(child)) nested.add(child);
-    return candidates.filter(id => !nested.has(id));
+    const result = candidates.filter(id => !nested.has(id));
+    return result.length || !repairMode ? result : candidates;
   }
   function primaryIds() {
     return documentState.tasks.filter(task => {
@@ -246,6 +250,13 @@
     message.hidden = false; saveStatus.textContent = "Not saved";
   }
   function clearError() { message.hidden = true; message.textContent = ""; }
+  function updateRepairState(data) {
+    repairMode = data.repair === true;
+    const errors = (data.issues || []).filter(issue => issue.severity === "error");
+    repairSummary.hidden = !repairMode || !errors.length;
+    repairIssues.innerHTML = errors.map(issue => `<li>${issue.label ? `${escapeHtml(issue.label)} · ` : ""}<code>${escapeHtml(issue.location)}</code>: ${escapeHtml(issue.message)}</li>`).join("");
+    saveStatus.textContent = data.saved === false ? "Repairs not yet saved" : "Saved";
+  }
   async function requestJson(url, options = {}) {
     const response = await fetch(url, {headers: {"Content-Type": "application/json"}, ...options});
     const data = await response.json();
@@ -256,7 +267,7 @@
     saveStatus.textContent = "Saving…"; clearError();
     saveQueue = saveQueue.catch(() => {}).then(operation).then(data => {
       documentState = data.document; revision = data.revision; priorities = data.priorities;
-      saveStatus.textContent = "Saved"; if (rerender) render(); return data;
+      updateRepairState(data); if (rerender) render(); return data;
     }).catch(error => { showError(error); throw error; });
     saveQueue.catch(() => {});
     return saveQueue;
@@ -715,7 +726,7 @@
   function startEditor(data) {
     documentState = data.document; revision = data.revision; priorities = data.priorities;
     firstRun.hidden = true; editor.hidden = false;
-    renderFilters(); render(); saveStatus.textContent = "Saved"; app.setAttribute("aria-busy", "false");
+    renderFilters(); render(); updateRepairState(data); app.setAttribute("aria-busy", "false");
   }
   function showCreation(data) {
     priorities = data.priorities;
