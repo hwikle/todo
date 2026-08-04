@@ -43,6 +43,22 @@ def write_text_atomic(
         raise
 
 
+def create_text_atomic(path: Path, content: str, *, create_parents: bool = True) -> None:
+    """Atomically create a complete file without replacing an existing path."""
+    if create_parents:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def emit_text(content: str, output: Path | None, replace: bool) -> None:
     if output is None:
         print(content, end="")

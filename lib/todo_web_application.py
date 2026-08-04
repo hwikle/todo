@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
+import datetime as dt
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Iterable, Optional, cast
 
 from todo_application import AddTaskRequest, EditTaskRequest, TodoApplication
-from todo_io import write_text_atomic
-from todo_model import DeadlineKind, DueDate, Priority, Task, TodoList
+from todo_generation import generate_document
+from todo_io import create_text_atomic, write_text_atomic
+from todo_model import Category, DeadlineKind, DueDate, Priority, Task, TodoList
 from todo_schema import CanonicalSchemaBundle
 from todo_selectors import resolve_task
 
@@ -24,18 +26,38 @@ class RevisionConflict(WebEditError):
     """The canonical file changed after the browser last loaded it."""
 
 
+class TaskRequiredError(WebEditError):
+    """A task cannot be removed while other tasks depend on it."""
+
+    def __init__(self, blockers: list[dict[str, Any]]) -> None:
+        self.blockers = blockers
+        super().__init__("outdent this task from its parent tasks before deleting it")
+
+
 @dataclass(frozen=True)
 class DocumentSnapshot:
     document: TodoList
     revision: str
 
 
+@dataclass(frozen=True)
+class TaskCreationResult:
+    snapshot: DocumentSnapshot
+    task_id: str
+
+
 class TodoWebApplication:
     """Coordinate browser operations without coupling domain logic to HTTP."""
 
-    def __init__(self, path: Path, bundle: CanonicalSchemaBundle) -> None:
+    def __init__(
+        self,
+        path: Path,
+        bundle: CanonicalSchemaBundle,
+        configured_categories: Iterable[Category] = (),
+    ) -> None:
         self.path = path.resolve()
         self.application = TodoApplication(bundle)
+        self.configured_categories = tuple(copy.deepcopy(list(configured_categories)))
 
     @staticmethod
     def _revision(content: bytes) -> str:
@@ -52,6 +74,36 @@ class TodoWebApplication:
             first = errors[0]
             raise WebEditError(f"{first.location}: {first.message}")
         return DocumentSnapshot(document, self._revision(content))
+
+    def exists(self) -> bool:
+        return self.path.exists()
+
+    def creation_state(self) -> dict[str, Any]:
+        return {
+            "exists": False,
+            "default_date": dt.date.today().isoformat(),
+            "categories": list(copy.deepcopy(self.configured_categories)),
+        }
+
+    def create(self, target_date: str) -> DocumentSnapshot:
+        if self.path.exists():
+            raise RevisionConflict("the TODO list was created elsewhere; reload before continuing")
+        document = generate_document(target_date, None, self.configured_categories)
+        errors = [
+            issue for issue in self.application.validate(document)
+            if issue.severity == "error"
+        ]
+        if errors:
+            first = errors[0]
+            raise WebEditError(f"{first.location}: {first.message}")
+        content = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+        try:
+            create_text_atomic(self.path, content)
+        except FileExistsError as exc:
+            raise RevisionConflict(
+                "the TODO list was created elsewhere; reload before continuing"
+            ) from exc
+        return DocumentSnapshot(document, self._revision(content.encode()))
 
     def _save(self, document: TodoList, expected_revision: str) -> DocumentSnapshot:
         current = self.path.read_bytes()
@@ -88,8 +140,11 @@ class TodoWebApplication:
         parent_id: Optional[str],
         after_id: Optional[str],
         context_category: Optional[str],
-    ) -> DocumentSnapshot:
+    ) -> TaskCreationResult:
+        created_id: Optional[str] = None
+
         def operation(document: TodoList) -> TodoList:
+            nonlocal created_id
             before = {task["id"] for task in document["tasks"]}
             updated = self.application.add(
                 document,
@@ -101,10 +156,14 @@ class TodoWebApplication:
                 ),
             )
             new_task = next(task for task in updated["tasks"] if task["id"] not in before)
+            created_id = new_task["id"]
             self._position(updated, new_task["id"], parent_id, after_id, context_category)
             return updated
 
-        return self._change(expected_revision, operation)
+        snapshot = self._change(expected_revision, operation)
+        if created_id is None:
+            raise WebEditError("task creation did not produce exactly one new task")
+        return TaskCreationResult(snapshot, created_id)
 
     def edit_task(
         self,
@@ -176,9 +235,31 @@ class TodoWebApplication:
         return self._change(expected_revision, operation)
 
     def remove_task(self, expected_revision: str, task_id: str) -> DocumentSnapshot:
+        def operation(document: TodoList) -> TodoList:
+            parents = [task for task in document["tasks"] if task_id in task["dependencies"]]
+            if parents:
+                memberships = {
+                    task["id"]: [
+                        item["category"]
+                        for item in document["category_memberships"]
+                        if task["id"] in item["tasks"]
+                    ]
+                    for task in parents
+                }
+                raise TaskRequiredError([
+                    {
+                        "id": task["id"],
+                        "name": task["name"],
+                        "priority": task.get("priority"),
+                        "categories": memberships[task["id"]],
+                    }
+                    for task in parents
+                ])
+            return self.application.remove(document, task_id)
+
         return self._change(
             expected_revision,
-            lambda document: self.application.remove(document, task_id),
+            operation,
         )
 
     @staticmethod

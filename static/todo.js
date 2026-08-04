@@ -2,6 +2,11 @@
   "use strict";
 
   const app = document.getElementById("todo-app");
+  const firstRun = document.getElementById("first-run");
+  const editor = document.getElementById("editor");
+  const createListForm = document.getElementById("create-list-form");
+  const listDate = document.getElementById("list-date");
+  const creationCategories = document.getElementById("creation-categories");
   const checklist = document.getElementById("checklist");
   const categoryFilters = document.getElementById("category-filters");
   const priorityFilters = document.getElementById("priority-filters");
@@ -71,7 +76,7 @@
     const priorityOptions = [`<option value="">Unprioritized</option>`, ...priorities.map(priority => `<option value="${escapeHtml(priority)}" ${task.priority === priority ? "selected" : ""}>${escapeHtml(priority[0].toUpperCase() + priority.slice(1))}</option>`)].join("");
     const draft = task._draft === true;
     return `<div class="branch" data-id="${id}" data-parent="${parentId || ""}" data-category="${contextCategory || categories[0] || ""}">
-      <div class="task-row ${primary.has(id) ? "" : "contextual"}" data-id="${id}" data-parent="${parentId || ""}">
+      <div class="task-row ${primary.has(id) ? "" : "contextual"}" data-id="${id}" data-parent="${parentId || ""}" data-category="${contextCategory || categories[0] || ""}">
         <input class="task-check" type="checkbox" aria-label="Mark ${escapeHtml(task.name || "new task")} complete" ${task.completed ? "checked" : ""} ${draft ? "disabled" : ""}>
         <div class="task-fields">
           <input class="task-name" value="${escapeHtml(task.name)}" placeholder="New task" aria-label="Task name">
@@ -93,6 +98,13 @@
       <div class="children">${task.dependencies.map(child => renderBranch(child, id, contextCategory, primary, visible, tasks, nextSeen)).join("")}</div>
     </div>`;
   }
+  function renderEmptyCategory(categoryId) {
+    if (selectedPriorities.size > 1) return `<p class="empty">Select one priority to add a task here.</p>`;
+    const priority = selectedPriorities.size === 1 ? [...selectedPriorities][0] : "";
+    return `<div class="empty-category-row" data-category="${escapeHtml(categoryId)}" data-priority="${escapeHtml(priority)}">
+      <input class="empty-category-name" placeholder="New task" aria-label="New task in ${escapeHtml(categoryMap().get(categoryId).display_name)}">
+    </div>`;
+  }
   function render() {
     const tasks = taskMap();
     const primary = new Set(primaryIds());
@@ -100,9 +112,10 @@
     const groups = [];
     if (grouping.value === "category") {
       for (const category of documentState.categories) {
+        if (selectedCategories.size && !selectedCategories.has(category.id)) continue;
         const membership = documentState.category_memberships.find(item => item.category === category.id);
         const candidates = (membership?.tasks || []).filter(id => primary.has(id));
-        if (candidates.length) groups.push([category.display_name, roots(candidates, tasks), category.id]);
+        groups.push([category.display_name, roots(candidates, tasks), category.id]);
       }
     } else if (grouping.value === "priority") {
       for (const priority of [...priorities, ""]) {
@@ -112,9 +125,12 @@
     } else {
       groups.push(["", roots(primary, tasks), null]);
     }
-    checklist.innerHTML = groups.length ? groups.map(([label, ids, category]) => `<section class="check-group">${label ? `<h2 class="group-title">${escapeHtml(label)}</h2>` : ""}${ids.map(id => renderBranch(id, null, category, primary, visible, tasks)).join("")}</section>`).join("") : `<p class="empty">No tasks match these filters.</p>`;
+    checklist.innerHTML = groups.length ? groups.map(([label, ids, category]) => `<section class="check-group">${label ? `<h2 class="group-title">${escapeHtml(label)}</h2>` : ""}${ids.length ? ids.map(id => renderBranch(id, null, category, primary, visible, tasks)).join("") : category ? renderEmptyCategory(category) : `<p class="empty">No tasks match these filters.</p>`}</section>`).join("") : `<p class="empty">No tasks match these filters.</p>`;
     if (focusRequest) {
-      const target = checklist.querySelector(`.task-row[data-id="${CSS.escape(focusRequest.id)}"] .${focusRequest.field}`);
+      const parent = CSS.escape(focusRequest.parentId || "");
+      const category = CSS.escape(focusRequest.category || "");
+      const target = checklist.querySelector(`.task-row[data-id="${CSS.escape(focusRequest.id)}"][data-parent="${parent}"][data-category="${category}"] .${focusRequest.field}`)
+        || checklist.querySelector(`.task-row[data-id="${CSS.escape(focusRequest.id)}"] .${focusRequest.field}`);
       if (target) {
         target.focus();
         if (focusRequest.select) target.select();
@@ -130,12 +146,25 @@
     for (const priority of priorities) priorityFilters.insertAdjacentHTML("beforeend", `<button class="filter-chip" type="button" data-value="${escapeHtml(priority)}" aria-pressed="false">${escapeHtml(priority[0].toUpperCase() + priority.slice(1))}</button>`);
     priorityFilters.insertAdjacentHTML("beforeend", `<button class="filter-chip" type="button" data-value="" aria-pressed="false">Unprioritized</button>`);
   }
-  function showError(error) { message.textContent = error.message; message.hidden = false; saveStatus.textContent = "Not saved"; }
+  function showError(error) {
+    if (error.code === "task_required" && error.details?.blockers && documentState) {
+      const categories = categoryMap();
+      const blockers = error.details.blockers.map(blocker => {
+        const context = [
+          blocker.categories.map(id => categories.get(id)?.display_name || id).join(", "),
+          blocker.priority ? blocker.priority[0].toUpperCase() + blocker.priority.slice(1) : "Unprioritized"
+        ].filter(Boolean).join(" · ");
+        return `${blocker.name}${context ? ` (${context})` : ""}`;
+      });
+      message.textContent = `Cannot delete this task. Outdent it from: ${blockers.join("; ")}.`;
+    } else message.textContent = error.message;
+    message.hidden = false; saveStatus.textContent = "Not saved";
+  }
   function clearError() { message.hidden = true; message.textContent = ""; }
   async function requestJson(url, options = {}) {
     const response = await fetch(url, {headers: {"Content-Type": "application/json"}, ...options});
     const data = await response.json();
-    if (!response.ok) { const error = new Error(data.error || "Save failed"); error.code = data.code; throw error; }
+    if (!response.ok) { const error = new Error(data.error || "Save failed"); error.code = data.code; error.details = data; throw error; }
     return data;
   }
   function queueSave(operation, rerender = false) {
@@ -159,7 +188,6 @@
   function persistDraft(id) {
     const task = taskMap().get(id);
     if (!task?._draft || !task.name.trim()) return Promise.resolve(null);
-    const realIds = new Set(documentState.tasks.filter(item => !item._draft).map(item => item.id));
     return queueSave(() => requestJson("/api/tasks", {method: "POST", body: JSON.stringify({
       revision,
       name: task.name.trim(),
@@ -169,8 +197,23 @@
       after_id: task._afterId,
       context_category: task._contextCategory
     })}), false).then(data => {
-      const created = data.document.tasks.find(item => !realIds.has(item.id)) || null;
-      if (created) focusRequest = {id: created.id, field: "task-name"};
+      const created = data.document.tasks.find(item => item.id === data.created_id) || null;
+      if (created) focusRequest = {id: created.id, field: "task-name", parentId: task._parentId, category: task._contextCategory};
+      render();
+      return created;
+    });
+  }
+  function persistEmptyCategory(row) {
+    const name = row.querySelector(".empty-category-name").value.trim();
+    if (!name) return Promise.resolve(null);
+    const category = row.dataset.category;
+    const priority = row.dataset.priority || null;
+    return queueSave(() => requestJson("/api/tasks", {method: "POST", body: JSON.stringify({
+      revision, name, categories: [category], priority,
+      parent_id: null, after_id: null, context_category: category
+    })}), false).then(data => {
+      const created = data.document.tasks.find(item => item.id === data.created_id) || null;
+      if (created) focusRequest = {id: created.id, field: "task-name", parentId: null, category};
       render();
       return created;
     });
@@ -212,7 +255,7 @@
       const position = parent.dependencies.indexOf(task.id);
       parent.dependencies.splice(position < 0 ? parent.dependencies.length : position + 1, 0, id);
     }
-    focusRequest = {id, field: "task-name"};
+    focusRequest = {id, field: "task-name", parentId, category: contextCategory};
     render();
   }
   function move(row, newParentId, afterId) {
@@ -237,9 +280,19 @@
     const toggle = event.target.closest(".menu-toggle");
     if (toggle) { const panel = toggle.nextElementSibling; const opening = panel.hidden; closeMenus(panel); panel.hidden = !opening; toggle.setAttribute("aria-expanded", String(opening)); return; }
     const remove = event.target.closest(".remove-task");
-    if (remove) { const row = remove.closest(".task-row"); if (confirm("Remove this task?")) queueSave(() => requestJson(`/api/tasks/${encodeURIComponent(row.dataset.id)}`, {method: "DELETE", body: JSON.stringify({revision})}), true); }
+    if (remove) {
+      const row = remove.closest(".task-row");
+      const task = taskMap().get(row.dataset.id);
+      if (confirm(`Delete this task?\n\n${task.name}`)) queueSave(() => requestJson(`/api/tasks/${encodeURIComponent(row.dataset.id)}`, {method: "DELETE", body: JSON.stringify({revision})}), true);
+    }
   });
   checklist.addEventListener("input", event => {
+    const emptyRow = event.target.closest(".empty-category-row");
+    if (emptyRow && event.target.matches(".empty-category-name")) {
+      clearTimeout(timers.get(event.target));
+      timers.set(event.target, setTimeout(() => persistEmptyCategory(emptyRow), 650));
+      return;
+    }
     const row = event.target.closest(".task-row"); if (!row) return;
     const id = row.dataset.id;
     if (!event.target.matches(".task-name, .task-description")) return;
@@ -267,6 +320,16 @@
     }
   });
   checklist.addEventListener("keydown", event => {
+    const emptyRow = event.target.closest(".empty-category-row");
+    if (emptyRow && event.target.matches(".empty-category-name") && event.key === "Enter") {
+      event.preventDefault(); clearTimeout(timers.get(event.target));
+      persistEmptyCategory(emptyRow).then(created => {
+        if (!created) return;
+        const createdRow = checklist.querySelector(`.task-row[data-id="${CSS.escape(created.id)}"]`);
+        if (createdRow) addSibling(createdRow);
+      });
+      return;
+    }
     if (event.key === "Escape" && !event.target.matches(".task-name")) { closeMenus(); return; }
     if (!event.target.matches(".task-name")) return;
     const row = event.target.closest(".task-row");
@@ -274,7 +337,11 @@
     if ((event.key === "Backspace" || event.key === "Escape") && task._draft && !event.target.value) {
       event.preventDefault(); discardDraft(task.id); return;
     }
-    if (event.key === "Enter" && event.shiftKey) { event.preventDefault(); openDescriptions.add(row.dataset.id); focusRequest = {id: row.dataset.id, field: "task-description"}; render(); return; }
+    if (event.key === "Enter" && event.shiftKey) {
+      event.preventDefault(); openDescriptions.add(row.dataset.id);
+      focusRequest = {id: row.dataset.id, field: "task-description", parentId: row.dataset.parent || null, category: row.dataset.category || null};
+      render(); return;
+    }
     if (event.key === "Enter") {
       event.preventDefault();
       if (task._draft) {
@@ -299,8 +366,25 @@
     }
   });
 
-  requestJson("/api/todo").then(data => {
+  function startEditor(data) {
     documentState = data.document; revision = data.revision; priorities = data.priorities;
+    firstRun.hidden = true; editor.hidden = false;
     renderFilters(); render(); saveStatus.textContent = "Saved"; app.setAttribute("aria-busy", "false");
+  }
+  function showCreation(data) {
+    priorities = data.priorities;
+    listDate.value = data.default_date;
+    creationCategories.innerHTML = data.categories.map(category => `<li>${escapeHtml(category.display_name)}</li>`).join("");
+    editor.hidden = true; firstRun.hidden = false; app.setAttribute("aria-busy", "false");
+  }
+  createListForm.addEventListener("submit", event => {
+    event.preventDefault(); clearError(); app.setAttribute("aria-busy", "true");
+    requestJson("/api/todo", {method: "POST", body: JSON.stringify({date: listDate.value})})
+      .then(startEditor)
+      .catch(error => { app.setAttribute("aria-busy", "false"); showError(error); });
+  });
+  requestJson("/api/todo").then(data => {
+    if (data.exists === false) showCreation(data);
+    else startEditor(data);
   }).catch(showError);
 })();

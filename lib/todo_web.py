@@ -8,9 +8,11 @@ from typing import Any, Optional, cast
 from flask import Flask, Response, jsonify, render_template, request
 
 from todo_model import DeadlineKind, DueDate, Priority
+from todo_repository import configured_daily_categories
 from todo_schema import CanonicalSchemaBundle
 from todo_web_application import (
     RevisionConflict,
+    TaskRequiredError,
     TodoWebApplication,
     WebEditError,
     snapshot_payload,
@@ -26,17 +28,26 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
         template_folder=str(ROOT / "templates"),
         static_folder=str(ROOT / "static"),
     )
-    service = TodoWebApplication(path, bundle)
-    service.load()
+    categories = configured_daily_categories(ROOT / "config" / "task-types.conf")
+    service = TodoWebApplication(path, bundle, categories)
+    if service.exists():
+        service.load()
 
     def response_for(snapshot: Any) -> Response:
         payload = snapshot_payload(snapshot)
+        payload["exists"] = True
         payload["priorities"] = list(bundle.priority_policy.order)
         return jsonify(payload)
 
     @app.errorhandler(RevisionConflict)
     def revision_conflict(error: RevisionConflict) -> tuple[Response, int]:
         return jsonify(error=str(error), code="revision_conflict"), 409
+
+    @app.errorhandler(TaskRequiredError)
+    def task_required(error: TaskRequiredError) -> tuple[Response, int]:
+        return jsonify(
+            error=str(error), code="task_required", blockers=error.blockers
+        ), 409
 
     @app.errorhandler(WebEditError)
     @app.errorhandler(ValueError)
@@ -50,12 +61,21 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
 
     @app.get("/api/todo")
     def get_todo() -> Response:
+        if not service.exists():
+            payload = service.creation_state()
+            payload["priorities"] = list(bundle.priority_policy.order)
+            return jsonify(payload)
         return response_for(service.load())
+
+    @app.post("/api/todo")
+    def create_todo() -> Response:
+        data = _object_payload()
+        return response_for(service.create(_text(data, "date")))
 
     @app.post("/api/tasks")
     def add_task() -> Response:
         data = _object_payload()
-        snapshot = service.add_task(
+        result = service.add_task(
             _text(data, "revision"),
             name=_text(data, "name"),
             categories=tuple(_text_list(data, "categories")),
@@ -64,7 +84,11 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
             after_id=_optional_text(data, "after_id"),
             context_category=_optional_text(data, "context_category"),
         )
-        return response_for(snapshot)
+        payload = snapshot_payload(result.snapshot)
+        payload["exists"] = True
+        payload["priorities"] = list(bundle.priority_policy.order)
+        payload["created_id"] = result.task_id
+        return jsonify(payload)
 
     @app.patch("/api/tasks/<task_id>")
     def edit_task(task_id: str) -> Response:

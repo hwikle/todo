@@ -8,21 +8,32 @@
   </head>
   <body>
     <main id="todo-app" aria-busy="true">
-      <header class="toolbar">
-        <div class="filter-row" id="category-filters"><span>Category</span></div>
-        <div class="filter-row" id="priority-filters"><span>Priority</span></div>
-        <label class="grouping">Group
-          <select id="grouping">
-            <option value="category">Category</option>
-            <option value="priority">Priority</option>
-            <option value="none">None</option>
-          </select>
-        </label>
-        <output id="save-status" aria-live="polite">Loading…</output>
-      </header>
+      <section id="first-run" hidden>
+        <h1>Create TODO list</h1>
+        <p>This file does not exist yet. Create it to begin editing.</p>
+        <form id="create-list-form">
+          <label>Date<input id="list-date" type="date" required></label>
+          <div><span>Categories</span><ul id="creation-categories"></ul></div>
+          <button type="submit">Create list</button>
+        </form>
+      </section>
+      <section id="editor" hidden>
+        <header class="toolbar">
+          <div class="filter-row" id="category-filters"><span>Category</span></div>
+          <div class="filter-row" id="priority-filters"><span>Priority</span></div>
+          <label class="grouping">Group
+            <select id="grouping">
+              <option value="category">Category</option>
+              <option value="priority">Priority</option>
+              <option value="none">None</option>
+            </select>
+          </label>
+          <output id="save-status" aria-live="polite">Loading…</output>
+        </header>
+        <section id="checklist" aria-label="TODO checklist"></section>
+        <p class="keyboard-help">Enter adds a task · Tab and Shift+Tab change nesting · Shift+Enter adds a description</p>
+      </section>
       <p id="message" role="alert" hidden></p>
-      <section id="checklist" aria-label="TODO checklist"></section>
-      <p class="keyboard-help">Enter adds a task · Tab and Shift+Tab change nesting · Shift+Enter adds a description</p>
     </main>
     <script src="{{ url_for('static', filename='todo.js') }}"></script>
   </body>

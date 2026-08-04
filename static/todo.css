@@ -19,6 +19,14 @@ button, input, select { font: inherit; color: inherit; }
 button, select, input { outline-offset: 2px; }
 
 #todo-app { max-width: 1040px; margin: 0 auto; padding: 20px 28px 36px; }
+#first-run { max-width: 520px; margin: 56px auto 0; }
+#first-run h1 { margin: 0 0 8px; font-size: 1.5rem; font-weight: 500; }
+#first-run p { color: var(--muted); }
+#create-list-form { display: grid; gap: 18px; margin-top: 22px; }
+#create-list-form label { display: grid; gap: 5px; }
+#create-list-form input { width: fit-content; border: 1px solid var(--line); border-radius: 6px; padding: 7px; background: var(--soft); }
+#create-list-form ul { margin: 7px 0 0; padding-left: 22px; color: var(--muted); columns: 2; }
+#create-list-form button { width: fit-content; border: 0; border-radius: 6px; padding: 8px 13px; background: var(--selected); color: var(--selected-text); cursor: pointer; }
 .toolbar { display: grid; grid-template-columns: 1fr auto; gap: 9px 20px; align-items: center; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
 .filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
 .filter-row > span { width: 64px; color: var(--muted); }
@@ -55,6 +63,8 @@ button, select, input { outline-offset: 2px; }
 .remove-task { width: fit-content; border: 0; padding: 3px 0; background: transparent; color: var(--danger); cursor: pointer; }
 .children { margin-left: 28px; }
 .empty { color: var(--muted); padding: 22px 0; }
+.empty-category-row { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 6px; min-height: 29px; padding: 2px 0; }
+.empty-category-row::before { content: ""; }
 .keyboard-help { color: var(--muted); margin: 17px 0 0; }
 
 @media (max-width: 650px) {
