@@ -207,6 +207,8 @@ class WebApplicationTest(unittest.TestCase):
             priority="must",
         )
         self.assertTrue(repaired.saved)
+        self.assertTrue(repaired.repair_completed)
+        self.assertFalse(service.repair)
         self.assertFalse(any(issue.severity == "error" for issue in repaired.issues))
         self.assertEqual(json.loads(self.path.read_text())["tasks"][0]["name"], "Renamed parent")
 

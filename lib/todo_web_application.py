@@ -45,6 +45,7 @@ class DocumentSnapshot:
     revision: str
     issues: tuple[Issue, ...] = ()
     saved: bool = True
+    repair_completed: bool = False
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,7 @@ class TodoWebApplication:
             self._repair_document = copy.deepcopy(document)
             self._repair_revision = revision
             return DocumentSnapshot(document, revision, issues, False)
+        self.repair = False
         return DocumentSnapshot(document, revision, issues)
 
     def exists(self) -> bool:
@@ -150,10 +152,18 @@ class TodoWebApplication:
         if errors:
             raise WebEditError(format_issues(errors, document))
         content = (json.dumps(document, indent=2, ensure_ascii=False) + "\n").encode()
+        repair_completed = self.repair and self._repair_document is not None
         write_text_atomic(self.path, content.decode(), replace=True)
         self._repair_document = None
         self._repair_revision = None
-        return DocumentSnapshot(document, self._revision(content), issues)
+        if repair_completed:
+            self.repair = False
+        return DocumentSnapshot(
+            document,
+            self._revision(content),
+            issues,
+            repair_completed=repair_completed,
+        )
 
     def _change(
         self,
@@ -438,10 +448,12 @@ def snapshot_payload(snapshot: DocumentSnapshot) -> dict[str, Any]:
             {
                 **issue.__dict__,
                 "label": _model_label(issue.location, snapshot.document),
+                "task_ids": _issue_task_ids(issue.location, snapshot.document),
             }
             for issue in snapshot.issues
         ],
         "saved": snapshot.saved,
+        "repair_completed": snapshot.repair_completed,
     }
 
 
@@ -475,6 +487,28 @@ def _model_label(location: str, document: object) -> Optional[str]:
                     return f'{singular} "{value}"'
         return f"Unidentified {singular.lower()}"
     return None
+
+
+def _issue_task_ids(location: str, document: TodoList) -> list[str]:
+    prefix = "$.tasks["
+    if not location.startswith(prefix):
+        return []
+    try:
+        task_index = int(location[len(prefix):].split("]", 1)[0])
+        task = document["tasks"][task_index]
+    except (IndexError, ValueError):
+        return []
+    result = [task["id"]]
+    dependency_marker = ".dependencies["
+    if dependency_marker in location:
+        try:
+            dependency_index = int(location.split(dependency_marker, 1)[1].split("]", 1)[0])
+            dependency_id = task["dependencies"][dependency_index]
+        except (IndexError, ValueError):
+            return result
+        if dependency_id not in result:
+            result.append(dependency_id)
+    return result
 
 
 def _editor_can_repair(issue: Issue) -> bool:
