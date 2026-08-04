@@ -79,22 +79,31 @@ rewrite existing canonical documents.
 
 ## Browser checklist
 
-Open one explicitly selected canonical list in the local checklist editor:
+Open one explicitly selected canonical-list path in the local checklist editor:
 
 ```text
 todo serve path/to/todo.json
 ```
 
-Then visit `http://127.0.0.1:8000`. The command does not search for a list or
-generate Markdown. It edits only the file named on the command line.
+Then visit `http://127.0.0.1:8000`. If the file does not exist, the browser
+offers to create today's list with the configured categories; no CLI creation
+step is required. Starting the server alone does not create the file. The
+command does not search for a list or generate Markdown, and it edits only the
+explicit path named on the command line.
 
 The checklist autosaves task names, descriptions, completion state, categories,
 priorities, deadlines, and nesting. Press Enter in a task name to create a new
 sibling, Tab to make it a subtask of the preceding task, Shift+Tab to move it
-out one level, and Shift+Enter to add or focus its description. Blank new lines
-remain local to the browser until named. Category and priority filters can be
-combined; matching tasks are the primary results, while all of their transitive
+out one level, and Shift+Enter to add or focus its description. Empty categories
+contain a blank editable line for their first task. Blank new lines remain local
+to the browser until named. Category and priority filters can be combined;
+matching tasks are the primary results, while all of their transitive
 dependencies remain visible.
+
+Distinct tasks may have the same name. The editor identifies them by their
+canonical IDs internally, so editing or deleting one does not select another by
+name. If a task cannot be deleted because other tasks depend on it, the editor
+identifies those parent tasks and leaves the file unchanged.
 
 Every save includes the revision originally loaded by the browser. If another
 program changes the JSON file first, autosave stops and reports a conflict

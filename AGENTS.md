@@ -37,6 +37,13 @@ a revision token and reject stale writes. Filtering, grouping, contextual
 dependency display, and transient blank lines are view concerns and must not be
 persisted in canonical JSON.
 
+The browser must remain independently usable: an explicitly named missing list
+path enters a first-run state and is created only after an explicit browser
+action. Empty categories must expose an in-place first-task line. Client-side
+identity, focus restoration, edits, nesting, and deletion must use canonical
+task IDs and occurrence context, never task names or whole-document ID-set
+inference.
+
 ## Canonical invariants
 
 - Task IDs are unique canonical UUIDv4 strings.

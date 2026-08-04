@@ -24,6 +24,9 @@ explicit canonical file and open the displayed loopback address:
 todo serve path/to/todo.json
 ```
 
+The path may be new. In that case, create the list from the browser's first-run
+screen; running a separate CLI creation command is not required.
+
 No separate JavaScript toolchain or production web server is required for the
 single-user local workflow.
 
