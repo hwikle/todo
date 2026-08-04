@@ -47,18 +47,20 @@ button, select, input { outline-offset: 2px; }
 .priority-title { margin: 16px 0 5px; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 500; }
 .branch { display: block; }
 .task-row { display: grid; grid-template-columns: 18px 26px minmax(0, 1fr) auto; gap: 6px; align-items: start; min-height: 29px; padding: 2px 0; }
-.task-row.contextual { opacity: .72; }
+.task-row.contextual .task-rendered, .task-row.contextual .task-check { opacity: .72; }
 .drag-handle { opacity: 0; width: 18px; margin-top: 2px; padding: 0; border: 0; background: transparent; color: var(--muted); cursor: grab; line-height: 20px; letter-spacing: -3px; }
 .task-row:hover .drag-handle, .task-row:focus-within .drag-handle { opacity: 1; }
 .drag-handle:active { cursor: grabbing; }
 .task-row.dragging { opacity: .35; }
-.task-row.drop-before { box-shadow: inset 0 3px 0 var(--selected); }
-.task-row.drop-after { box-shadow: inset 0 -3px 0 var(--selected); }
-.task-row.drop-child { border-radius: 5px; background: var(--soft); outline: 2px solid var(--selected); }
+.drop-indicator { position: absolute; z-index: 30; height: 3px; border-radius: 999px; background: var(--selected); pointer-events: none; transform: translateY(-1px); }
+.drop-indicator[hidden] { display: none; }
 .task-check { appearance: none; width: 18px; height: 18px; margin: 4px 0 0; border: 1.5px solid var(--muted); border-radius: 5px; cursor: pointer; display: grid; place-items: center; }
 .task-check:checked { background: var(--selected); border-color: var(--selected); }
 .task-check:checked::after { content: "✓"; color: var(--selected-text); font-size: 12px; }
 .task-fields { min-width: 0; }
+.task-heading { display: flex; align-items: flex-start; width: fit-content; max-width: 100%; }
+.task-heading:has(.task-name:not([hidden])) { width: 100%; }
+.task-heading .task-rendered { width: auto; max-width: 100%; }
 .task-name, .task-description, .task-rendered { display: block; width: 100%; border: 0; border-radius: 3px; padding: 3px 2px; background: transparent; text-align: left; }
 .task-rendered { cursor: text; }
 .task-rendered code { padding: 1px 3px; border-radius: 3px; background: var(--soft); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
@@ -71,10 +73,10 @@ button, select, input { outline-offset: 2px; }
 .task-meta { display: flex; gap: 7px; align-items: center; min-height: 25px; color: var(--muted); white-space: nowrap; }
 .priority-indicator { padding: 2px 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: .78rem; }
 .due.hard { color: var(--danger); font-weight: 500; }
-.task-menu { position: relative; }
+.task-menu { position: relative; flex: 0 0 auto; }
 .menu-toggle { opacity: 0; border: 0; padding: 1px 5px; background: transparent; color: var(--muted); cursor: pointer; }
 .task-row:hover .menu-toggle, .task-row:focus-within .menu-toggle, .menu-toggle[aria-expanded="true"] { opacity: 1; }
-.menu-panel { position: absolute; z-index: 20; top: 25px; right: 0; width: min(310px, 88vw); display: grid; gap: 9px; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--page); box-shadow: 0 12px 30px light-dark(#24301f22, #00000070); }
+.menu-panel { position: absolute; z-index: 20; top: 25px; left: 0; width: min(310px, 88vw); display: grid; gap: 9px; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--page); box-shadow: 0 12px 30px light-dark(#24301f22, #00000070); }
 .menu-panel[hidden] { display: none; }
 .menu-panel label { display: grid; gap: 3px; color: var(--muted); }
 .menu-panel input, .menu-panel select { width: 100%; border: 1px solid var(--line); border-radius: 5px; padding: 6px; background: var(--soft); }
@@ -83,13 +85,11 @@ button, select, input { outline-offset: 2px; }
 .due-controls [hidden] { display: none; }
 .remove-task { width: fit-content; border: 0; padding: 3px 0; background: transparent; color: var(--danger); cursor: pointer; }
 .children { margin-left: 28px; }
-.outdent-drop { display: none; margin: 2px 0 2px 28px; padding: 5px 8px; border: 1px dashed var(--line); border-radius: 5px; color: var(--muted); font-size: .8rem; }
-.drag-active .outdent-drop { display: block; }
-.outdent-drop.drop-outdent { border-color: var(--selected); background: var(--soft); color: var(--text); }
 .empty { color: var(--muted); padding: 22px 0; }
 .empty-category-row { min-height: 29px; padding: 2px 0 2px 56px; }
 .empty-category-name { width: 100%; }
 .keyboard-help { color: var(--muted); margin: 17px 0 0; }
+#checklist { position: relative; }
 dialog { width: min(560px, 90vw); border: 1px solid var(--line); border-radius: 10px; padding: 18px; background: var(--page); color: var(--text); }
 dialog::backdrop { background: light-dark(#0004, #0008); }
 dialog h2 { margin: 0 0 14px; font-size: 1.25rem; font-weight: 500; }

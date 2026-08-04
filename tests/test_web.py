@@ -62,6 +62,15 @@ class WebAdapterTest(unittest.TestCase):
         self.assertIn(b'id="checklist"', response.data)
         self.assertIn(b"todo.js", response.data)
 
+    def test_browser_assets_keep_context_menus_clickable_and_drag_feedback_stationary(self) -> None:
+        script = (ROOT / "static" / "todo.js").read_text()
+        stylesheet = (ROOT / "static" / "todo.css").read_text()
+        self.assertIn('dropIndicator.className = "drop-indicator"', script)
+        self.assertNotIn("outdent-drop", script)
+        self.assertIn(".task-heading", stylesheet)
+        self.assertIn(".drop-indicator { position: absolute", stylesheet)
+        self.assertNotIn(".task-row.contextual { opacity", stylesheet)
+
     def test_missing_file_can_be_created_in_the_browser(self) -> None:
         missing = Path(self.temporary.name) / "missing" / "todo.json"
         app = create_app(missing, self.bundle)

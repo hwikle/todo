@@ -24,6 +24,9 @@
   const cancelDelete = document.getElementById("cancel-delete");
   const saveStatus = document.getElementById("save-status");
   const message = document.getElementById("message");
+  const dropIndicator = document.createElement("div");
+  dropIndicator.className = "drop-indicator";
+  dropIndicator.hidden = true;
   let documentState;
   let revision;
   let priorities = [];
@@ -35,6 +38,7 @@
   const timers = new Map();
   let pendingDeletion = null;
   let draggedTask = null;
+  let pendingDrop = null;
 
   const escapeHtml = value => String(value).replace(/[&<>"]/g, character => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"
@@ -131,29 +135,29 @@
         ${draft ? `<span class="drag-spacer"></span>` : `<button type="button" class="drag-handle" draggable="${sorting.value === "manual"}" aria-label="Drag to move ${escapeHtml(task.name)}" title="${sorting.value === "manual" ? "Drag to move task" : "Switch to manual sorting to drag"}">⋮⋮</button>`}
         <input class="task-check" type="checkbox" aria-label="Mark ${escapeHtml(task.name || "new task")} complete" ${task.completed ? "checked" : ""} ${draft ? "disabled" : ""}>
         <div class="task-fields">
-          <button type="button" class="task-rendered task-name-rendered" ${draft ? "hidden" : ""} aria-label="Edit task name">${inlineMarkup(task.name)}</button>
-          <input class="task-name" value="${escapeHtml(task.name)}" placeholder="New task" aria-label="Task name" ${draft ? "" : "hidden"}>
+          <div class="task-heading">
+            <button type="button" class="task-rendered task-name-rendered" ${draft ? "hidden" : ""} aria-label="Edit task name">${inlineMarkup(task.name)}</button>
+            <input class="task-name" value="${escapeHtml(task.name)}" placeholder="New task" aria-label="Task name" ${draft ? "" : "hidden"}>
+            ${draft ? "" : `<div class="task-menu"><button class="menu-toggle" type="button" aria-label="Task options" aria-expanded="false">···</button>
+              <div class="menu-panel" hidden>
+                <label>Priority<select data-field="priority">${priorityOptions}</select></label>
+                <label>Categories<select data-field="categories" multiple>${categoryOptions(categories)}</select></label>
+                <fieldset class="due-controls">
+                  <legend>Deadline</legend>
+                  <label>Precision<select data-field="due-precision"><option value="none" ${!task.due ? "selected" : ""}>No deadline</option><option value="year" ${duePrecision(task) === "year" ? "selected" : ""}>Year</option><option value="month" ${duePrecision(task) === "month" ? "selected" : ""}>Month</option><option value="day" ${duePrecision(task) === "day" ? "selected" : ""}>Day</option></select></label>
+                  <label class="due-value-label">Date${dueInput(task)}</label>
+                  <label class="due-time-label" ${duePrecision(task) === "day" ? "" : "hidden"}>Time (optional)<input data-field="due-time" type="time" value="${escapeHtml(task.due?.time || "")}"></label>
+                  <label class="deadline-kind-label" ${task.due ? "" : "hidden"}>Kind<select data-field="deadline-kind"><option value="soft" ${task.deadline_kind === "soft" ? "selected" : ""}>Soft</option><option value="hard" ${task.deadline_kind === "hard" ? "selected" : ""}>Hard</option></select></label>
+                </fieldset>
+                <button class="remove-task" type="button">Remove task</button>
+              </div>
+            </div>`}
+          </div>
           ${descriptionShown ? `<button type="button" class="task-rendered task-description-rendered" aria-label="Edit task description" ${task.description ? "" : "hidden"}>${inlineMarkup(task.description || "")}</button><input class="task-description" value="${escapeHtml(task.description || "")}" placeholder="Description" aria-label="Task description" ${task.description ? "hidden" : ""}>` : ""}
         </div>
-        ${draft ? `<div class="task-meta"></div>` : `<div class="task-meta">${grouping.value !== "priority" ? `<span class="priority-indicator">${escapeHtml(task.priority ? task.priority[0].toUpperCase() + task.priority.slice(1) : "Unprioritized")}</span>` : ""}${task.due ? `<span class="due ${task.deadline_kind || ""}">${escapeHtml(dueText(task))}</span>` : ""}
-          <div class="task-menu"><button class="menu-toggle" type="button" aria-label="Task options" aria-expanded="false">···</button>
-            <div class="menu-panel" hidden>
-              <label>Priority<select data-field="priority">${priorityOptions}</select></label>
-              <label>Categories<select data-field="categories" multiple>${categoryOptions(categories)}</select></label>
-              <fieldset class="due-controls">
-                <legend>Deadline</legend>
-                <label>Precision<select data-field="due-precision"><option value="none" ${!task.due ? "selected" : ""}>No deadline</option><option value="year" ${duePrecision(task) === "year" ? "selected" : ""}>Year</option><option value="month" ${duePrecision(task) === "month" ? "selected" : ""}>Month</option><option value="day" ${duePrecision(task) === "day" ? "selected" : ""}>Day</option></select></label>
-                <label class="due-value-label">Date${dueInput(task)}</label>
-                <label class="due-time-label" ${duePrecision(task) === "day" ? "" : "hidden"}>Time (optional)<input data-field="due-time" type="time" value="${escapeHtml(task.due?.time || "")}"></label>
-                <label class="deadline-kind-label" ${task.due ? "" : "hidden"}>Kind<select data-field="deadline-kind"><option value="soft" ${task.deadline_kind === "soft" ? "selected" : ""}>Soft</option><option value="hard" ${task.deadline_kind === "hard" ? "selected" : ""}>Hard</option></select></label>
-              </fieldset>
-              <button class="remove-task" type="button">Remove task</button>
-            </div>
-          </div>
-        </div>`}
+        ${draft ? `<div class="task-meta"></div>` : `<div class="task-meta">${grouping.value !== "priority" ? `<span class="priority-indicator">${escapeHtml(task.priority ? task.priority[0].toUpperCase() + task.priority.slice(1) : "Unprioritized")}</span>` : ""}${task.due ? `<span class="due ${task.deadline_kind || ""}">${escapeHtml(dueText(task))}</span>` : ""}</div>`}
       </div>
       <div class="children">${sortedIds(task.dependencies, tasks).map(child => renderBranch(child, id, contextCategory, primary, visible, tasks, nextSeen)).join("")}</div>
-      ${task.dependencies.length ? `<div class="outdent-drop" data-parent="${parentId || ""}" data-after="${id}" data-category="${contextCategory || categories[0] || ""}">Move out one level after ${escapeHtml(task.name)}</div>` : ""}
     </div>`;
   }
   function renderEmptyCategory(categoryId) {
@@ -217,6 +221,7 @@
       groups.push(["", sortedIds(roots(primary, tasks), tasks), null]);
     }
     checklist.innerHTML = groups.length ? groups.map(([label, ids, category]) => `<section class="check-group">${label ? `<h2 class="group-title">${escapeHtml(label)}</h2>` : ""}${ids.length ? ids.map(id => renderBranch(id, null, category, primary, visible, tasks)).join("") : category ? renderEmptyCategory(category) : `<p class="empty">No tasks match these filters.</p>`}</section>`).join("") : `<p class="empty">No tasks match these filters.</p>`;
+    checklist.append(dropIndicator);
     const editorToRestore = focusRequest || activeEditor;
     if (editorToRestore) restoreEditor(editorToRestore);
     focusRequest = null;
@@ -372,14 +377,31 @@
   }
 
   function clearDropIndicators() {
-    checklist.querySelectorAll(".drop-before, .drop-after, .drop-child, .drop-outdent").forEach(element =>
-      element.classList.remove("drop-before", "drop-after", "drop-child", "drop-outdent")
-    );
+    dropIndicator.hidden = true;
+    pendingDrop = null;
   }
   function dropPosition(row, clientY) {
     const bounds = row.getBoundingClientRect();
     const fraction = (clientY - bounds.top) / bounds.height;
     return fraction < .3 ? "before" : fraction > .7 ? "after" : "child";
+  }
+  function showDropIndicator(row, position) {
+    const checklistBounds = checklist.getBoundingClientRect();
+    const rowBounds = row.getBoundingClientRect();
+    const branchBounds = row.closest(".branch").getBoundingClientRect();
+    const indent = position === "child" ? 28 : 0;
+    const left = rowBounds.left - checklistBounds.left + indent;
+    const top = (position === "before" ? rowBounds.top : branchBounds.bottom) - checklistBounds.top;
+    dropIndicator.style.left = `${left}px`;
+    dropIndicator.style.top = `${top}px`;
+    dropIndicator.style.width = `${Math.max(24, checklistBounds.right - rowBounds.left - indent)}px`;
+    dropIndicator.hidden = false;
+    pendingDrop = {
+      newParentId: position === "child" ? row.dataset.id : row.dataset.parent || null,
+      afterId: position === "after" ? row.dataset.id : null,
+      beforeId: position === "before" ? row.dataset.id : null,
+      category: row.dataset.category
+    };
   }
   function moveDragged(newParentId, afterId, beforeId, contextCategory) {
     if (!draggedTask) return;
@@ -457,36 +479,31 @@
     draggedTask = {id: row.dataset.id, parentId: row.dataset.parent || null, category: row.dataset.category || null};
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", row.dataset.id);
-    requestAnimationFrame(() => { row.classList.add("dragging"); checklist.classList.add("drag-active"); });
+    requestAnimationFrame(() => row.classList.add("dragging"));
   });
   checklist.addEventListener("dragover", event => {
     if (!draggedTask || sorting.value !== "manual") return;
-    const outdent = event.target.closest(".outdent-drop");
     const row = event.target.closest(".task-row");
-    if (outdent?.dataset.after === draggedTask.id) return;
-    if (!outdent && (!row || row.dataset.id === draggedTask.id)) return;
-    event.preventDefault(); event.dataTransfer.dropEffect = "move"; clearDropIndicators();
-    if (outdent) outdent.classList.add("drop-outdent");
-    else row.classList.add(`drop-${dropPosition(row, event.clientY)}`);
+    if (!row || row.dataset.id === draggedTask.id) { clearDropIndicators(); return; }
+    event.preventDefault(); event.dataTransfer.dropEffect = "move";
+    showDropIndicator(row, dropPosition(row, event.clientY));
+  });
+  checklist.addEventListener("dragleave", event => {
+    if (!checklist.contains(event.relatedTarget)) clearDropIndicators();
   });
   checklist.addEventListener("drop", event => {
-    if (!draggedTask) return;
-    const outdent = event.target.closest(".outdent-drop");
-    const row = event.target.closest(".task-row");
-    if (outdent?.dataset.after === draggedTask.id) return;
-    if (!outdent && (!row || row.dataset.id === draggedTask.id)) return;
+    if (!draggedTask || !pendingDrop) return;
     event.preventDefault();
-    if (outdent) {
-      moveDragged(outdent.dataset.parent || null, outdent.dataset.after, null, outdent.dataset.category);
-    } else {
-      const position = dropPosition(row, event.clientY);
-      const parent = position === "child" ? row.dataset.id : row.dataset.parent || null;
-      moveDragged(parent, position === "after" ? row.dataset.id : null, position === "before" ? row.dataset.id : null, row.dataset.category);
-    }
+    moveDragged(
+      pendingDrop.newParentId,
+      pendingDrop.afterId,
+      pendingDrop.beforeId,
+      pendingDrop.category
+    );
     clearDropIndicators();
   });
   checklist.addEventListener("dragend", () => {
-    clearDropIndicators(); checklist.classList.remove("drag-active");
+    clearDropIndicators();
     checklist.querySelectorAll(".dragging").forEach(element => element.classList.remove("dragging"));
     draggedTask = null;
   });

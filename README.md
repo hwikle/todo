@@ -102,8 +102,9 @@ dependencies remain visible.
 
 In manual sort mode, hover over a task and drag its handle to move it. Drop near
 the top or bottom of another task to place it before or after that task, or drop
-in the center to make it a dependency. While dragging within a nested branch,
-an explicit target appears for moving the task out one level. Deadline-sorted
+in the center to make it a dependency. A single horizontal line shows the
+resulting position and indentation without shifting the checklist. Dropping
+after a task at a shallower level moves the dragged task outward. Deadline-sorted
 views are read-only with respect to ordering; switch back to manual sorting to
 drag or use Option+Up and Option+Down.
 

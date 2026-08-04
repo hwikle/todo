@@ -42,6 +42,8 @@ partial deadlines retain their original precision in storage.
 Drag-and-drop and keyboard movement must call the same application-layer move
 operations, identify occurrences by task ID plus displayed parent and category,
 and remain disabled in non-manual sort views.
+Drag feedback must be an overlay and must not insert layout-affecting targets or
+move checklist content while the pointer is choosing a destination.
 Necessary rerenders must preserve the active task occurrence, unsaved editor
 value, selection range, and the user's newer focus. Placeholder text must never
 be promoted into canonical task content.
