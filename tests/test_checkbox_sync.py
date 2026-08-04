@@ -124,7 +124,7 @@ class CheckboxSyncTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(result.returncode, 1)
-        self.assertIn("incomplete dependency", result.stderr)
+        self.assertIn("dependency 'Repeated dependency' is incomplete", result.stderr)
         self.assertEqual(todo_list.read_text(), before)
 
     def test_cli_supports_output_and_stdout(self) -> None:

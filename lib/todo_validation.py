@@ -110,7 +110,11 @@ class CanonicalTodoValidator:
                 dependency = tasks[matches[0]]
                 if task["completed"] and not dependency["completed"]:
                     issues.append(
-                        Issue("error", location, "completed task has an incomplete dependency")
+                        Issue(
+                            "error",
+                            location,
+                            f"dependency {dependency['name']!r} is incomplete",
+                        )
                     )
                 if "priority" in task and "priority" not in dependency:
                     task_rank = self.priority_policy.rank(task["priority"])
@@ -119,7 +123,8 @@ class CanonicalTodoValidator:
                             Issue(
                                 "error",
                                 location,
-                                f"unprioritized dependency is less urgent than task priority {task['priority']!r}",
+                                f"dependency {dependency['name']!r} is unprioritized and less urgent "
+                                f"than task priority {task['priority']!r}",
                             )
                         )
                 elif "priority" in task and "priority" in dependency:
@@ -130,7 +135,8 @@ class CanonicalTodoValidator:
                             Issue(
                                 "error",
                                 location,
-                                f"dependency priority {dependency['priority']!r} is less urgent than "
+                                f"dependency {dependency['name']!r} priority "
+                                f"{dependency['priority']!r} is less urgent than "
                                 f"task priority {task['priority']!r}",
                             )
                         )
