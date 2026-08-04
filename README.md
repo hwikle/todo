@@ -116,8 +116,9 @@ backticks is displayed in monospace and remains editable as ordinary text.
 
 Distinct tasks may have the same name. The editor identifies them by their
 canonical IDs internally, so editing or deleting one does not select another by
-name. If a task cannot be deleted because other tasks depend on it, the editor
-identifies those parent tasks and leaves the file unchanged.
+name. Removing a task from one displayed parent detaches only that dependency
+relationship. Deleting a task everywhere names the affected dependent tasks,
+then atomically removes the task and every reference to it.
 
 Every save includes the revision originally loaded by the browser. If another
 program changes the JSON file first, autosave stops and reports a conflict
@@ -132,8 +133,9 @@ are available when an explicit alternative is needed.
 ## Canonical model and validation
 
 Every task has a UUIDv4 ID, completion state, dependency list, explicit category
-membership, and optional priority, description, and deadline. Dependencies may
-have the same or lower priority than tasks that depend on them. Completed tasks
+membership, and optional priority, description, and deadline. Dependencies must
+have the same or higher urgency than tasks that depend on them. An unprioritized
+dependency is allowed only for a Could or unprioritized task. Completed tasks
 cannot have incomplete dependencies. Validation detects invalid schemas,
 unresolved or duplicate references, cycles, completion inconsistency, priority
 inversions, invalid dates, and conflicting repeated checkboxes. Advisory issues

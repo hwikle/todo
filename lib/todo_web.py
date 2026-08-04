@@ -11,7 +11,6 @@ from todo_model import DeadlineKind, DueDate, Priority
 from todo_schema import CanonicalSchemaBundle
 from todo_web_application import (
     RevisionConflict,
-    TaskRequiredError,
     TodoWebApplication,
     WebEditError,
     snapshot_payload,
@@ -40,12 +39,6 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
     @app.errorhandler(RevisionConflict)
     def revision_conflict(error: RevisionConflict) -> tuple[Response, int]:
         return jsonify(error=str(error), code="revision_conflict"), 409
-
-    @app.errorhandler(TaskRequiredError)
-    def task_required(error: TaskRequiredError) -> tuple[Response, int]:
-        return jsonify(
-            error=str(error), code="task_required", blockers=error.blockers
-        ), 409
 
     @app.errorhandler(WebEditError)
     @app.errorhandler(ValueError)
@@ -79,6 +72,7 @@ def create_app(path: Path, bundle: CanonicalSchemaBundle) -> Flask:
         result = service.add_task(
             _text(data, "revision"),
             name=_text(data, "name"),
+            description=_nullable_text(data, "description"),
             categories=tuple(_text_list(data, "categories")),
             priority=cast(Optional[Priority], data.get("priority")),
             parent_id=_optional_text(data, "parent_id"),

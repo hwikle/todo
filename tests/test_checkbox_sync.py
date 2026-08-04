@@ -28,7 +28,7 @@ def document() -> TodoList:
             {
                 "id": "00000000-0000-4000-8000-000000000001",
                 "name": "Parent",
-                "priority": "must",
+                "priority": "should",
                 "completed": False,
                 "dependencies": ["00000000-0000-4000-8000-000000000002"],
                 "due": {"year": 2042, "month": 1, "day": 5, "time": "09:30"},
@@ -44,7 +44,7 @@ def document() -> TodoList:
             {
                 "id": "00000000-0000-4000-8000-000000000003",
                 "name": "Second parent",
-                "priority": "must",
+                "priority": "should",
                 "completed": False,
                 "dependencies": ["00000000-0000-4000-8000-000000000002"],
             },
@@ -90,8 +90,8 @@ class CheckboxSyncTest(unittest.TestCase):
     def test_conflicting_repeated_checkboxes_fail(self) -> None:
         path = self.root / "work.md"
         content = path.read_text().replace(
-            "    - [ ] Repeated dependency — Should",
-            "    - [x] Repeated dependency — Should",
+            "    - [ ] Repeated dependency",
+            "    - [x] Repeated dependency",
             1,
         )
         path.write_text(content)

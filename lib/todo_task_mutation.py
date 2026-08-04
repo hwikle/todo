@@ -49,11 +49,20 @@ def attach_to_parents(
         new_priority = new_task.get("priority")
         if (
             parent_priority is not None
-            and new_priority is not None
-            and priority_policy.rank(new_priority) < priority_policy.rank(parent_priority)
+            and new_priority is None
+            and priority_policy.rank(parent_priority) < len(priority_policy.order) - 1
         ):
             raise TaskMutationError(
-                f"new task priority {new_priority!r} is higher than parent "
+                f"new task is unprioritized and less urgent than parent "
+                f"{parent['name']!r} priority {parent_priority!r}"
+            )
+        if (
+            parent_priority is not None
+            and new_priority is not None
+            and priority_policy.rank(new_priority) > priority_policy.rank(parent_priority)
+        ):
+            raise TaskMutationError(
+                f"new task priority {new_priority!r} is less urgent than parent "
                 f"{parent['name']!r} priority {parent_priority!r}"
             )
         for dependency_id in new_task["dependencies"]:
@@ -95,11 +104,10 @@ def remove_task(document: TodoList, selector: str) -> TodoList:
         selected = resolve_task(document, selector)
     except SelectorError as exc:
         raise TaskMutationError(str(exc)) from exc
-    parents = [task["name"] for task in document["tasks"] if selected["id"] in task["dependencies"]]
-    if parents:
-        raise TaskMutationError("task is still required by: " + ", ".join(parents))
     updated = copy.deepcopy(document)
     updated["tasks"] = [task for task in updated["tasks"] if task["id"] != selected["id"]]
+    for task in updated["tasks"]:
+        task["dependencies"] = [item for item in task["dependencies"] if item != selected["id"]]
     for membership in updated["category_memberships"]:
         membership["tasks"] = [item for item in membership["tasks"] if item != selected["id"]]
     return updated

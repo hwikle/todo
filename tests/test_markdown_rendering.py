@@ -27,7 +27,7 @@ def document() -> TodoList:
             {
                 "id": "00000000-0000-4000-8000-000000000001",
                 "name": "Parent",
-                "priority": "must",
+                "priority": "should",
                 "completed": False,
                 "dependencies": ["00000000-0000-4000-8000-000000000002"],
                 "description": "First line\nSecond line",
@@ -63,7 +63,7 @@ class MarkdownRenderingTest(unittest.TestCase):
         self.assertNotIn("task:", rendered.content)
         self.assertNotIn("00000000-0000-4000-8000-000000000001", rendered.content)
         self.assertEqual(rendered.content.count("Shared dependency"), 1)
-        self.assertIn("    - [ ] Shared dependency — Should", rendered.content)
+        self.assertIn("    - [ ] Shared dependency", rendered.content)
         self.assertNotIn("## Should\n\n- [ ] Shared dependency", rendered.content)
         child_occurrences = [
             item for item in rendered.occurrences if item.task_id == "00000000-0000-4000-8000-000000000002"
@@ -75,7 +75,7 @@ class MarkdownRenderingTest(unittest.TestCase):
         shared["tasks"].insert(1, {
             "id": "00000000-0000-4000-8000-000000000003",
             "name": "Second parent",
-            "priority": "must",
+            "priority": "should",
             "completed": False,
             "dependencies": ["00000000-0000-4000-8000-000000000002"],
         })
@@ -101,7 +101,7 @@ class MarkdownRenderingTest(unittest.TestCase):
         rendered = render_document(
             split, list(self.validator.priority_policy.order)
         )
-        self.assertIn("    - [ ] Shared dependency — Should", rendered["work.md"].content)
+        self.assertIn("    - [ ] Shared dependency", rendered["work.md"].content)
         self.assertIn("## Should\n\n- [ ] Shared dependency", rendered["learning.md"].content)
 
     def test_renders_readable_due_date_without_metadata_comment(self) -> None:

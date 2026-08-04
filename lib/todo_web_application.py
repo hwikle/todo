@@ -26,14 +26,6 @@ class RevisionConflict(WebEditError):
     """The canonical file changed after the browser last loaded it."""
 
 
-class TaskRequiredError(WebEditError):
-    """A task cannot be removed while other tasks depend on it."""
-
-    def __init__(self, blockers: list[dict[str, Any]]) -> None:
-        self.blockers = blockers
-        super().__init__("outdent this task from its parent tasks before deleting it")
-
-
 @dataclass(frozen=True)
 class DocumentSnapshot:
     document: TodoList
@@ -139,6 +131,7 @@ class TodoWebApplication:
         parent_id: Optional[str],
         after_id: Optional[str],
         context_category: Optional[str],
+        description: Optional[str] = None,
     ) -> TaskCreationResult:
         created_id: Optional[str] = None
 
@@ -149,6 +142,7 @@ class TodoWebApplication:
                 document,
                 AddTaskRequest(
                     name=name,
+                    description=description,
                     categories=categories,
                     priority=priority,
                     dependency_of=(parent_id,) if parent_id else (),
@@ -283,31 +277,9 @@ class TodoWebApplication:
         return self._change(expected_revision, operation)
 
     def remove_task(self, expected_revision: str, task_id: str) -> DocumentSnapshot:
-        def operation(document: TodoList) -> TodoList:
-            parents = [task for task in document["tasks"] if task_id in task["dependencies"]]
-            if parents:
-                memberships = {
-                    task["id"]: [
-                        item["category"]
-                        for item in document["category_memberships"]
-                        if task["id"] in item["tasks"]
-                    ]
-                    for task in parents
-                }
-                raise TaskRequiredError([
-                    {
-                        "id": task["id"],
-                        "name": task["name"],
-                        "priority": task.get("priority"),
-                        "categories": memberships[task["id"]],
-                    }
-                    for task in parents
-                ])
-            return self.application.remove(document, task_id)
-
         return self._change(
             expected_revision,
-            operation,
+            lambda document: self.application.remove(document, task_id),
         )
 
     def add_category(

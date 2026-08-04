@@ -59,13 +59,18 @@ def add_task(
     if priority is not None:
         for dependency in dependencies:
             dependency_priority = dependency.get("priority")
-            if (
-                dependency_priority is not None
-                and priority_policy.rank(dependency_priority) < priority_policy.rank(priority)
+            priority_rank = priority_policy.rank(priority)
+            if dependency_priority is None and priority_rank < len(priority_policy.order) - 1:
+                raise TaskAdditionError(
+                    f"dependency {dependency['name']!r} is unprioritized and less urgent "
+                    f"than new task priority {priority!r}"
+                )
+            if dependency_priority is not None and (
+                priority_policy.rank(dependency_priority) > priority_rank
             ):
                 raise TaskAdditionError(
-                    f"dependency {dependency['name']!r} has higher priority "
-                    f"{dependency_priority!r} than new task priority {priority!r}"
+                    f"dependency {dependency['name']!r} priority {dependency_priority!r} "
+                    f"is less urgent than new task priority {priority!r}"
                 )
 
     task_id = (ids or TaskIdSource()).next(task["id"] for task in document["tasks"])

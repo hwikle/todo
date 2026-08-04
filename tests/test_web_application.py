@@ -18,7 +18,6 @@ from todo_model import TodoList
 from todo_schema import CanonicalSchemaBundle
 from todo_web_application import (
     RevisionConflict,
-    TaskRequiredError,
     TodoWebApplication,
     WebEditError,
 )
@@ -33,7 +32,7 @@ def document() -> TodoList:
         "date": "2042-01-02",
         "tasks": [
             {"id": PARENT, "name": "Parent", "priority": "must", "completed": False, "dependencies": []},
-            {"id": SIBLING, "name": "Sibling", "priority": "should", "completed": False, "dependencies": []},
+            {"id": SIBLING, "name": "Sibling", "priority": "must", "completed": False, "dependencies": []},
         ],
         "categories": [{"id": "work", "display_name": "Work"}],
         "category_memberships": [{"category": "work", "tasks": [PARENT, SIBLING]}],
@@ -113,7 +112,7 @@ class WebApplicationTest(unittest.TestCase):
         removed = self.service.remove_task(edited.revision, added.task_id)
         self.assertEqual([task["id"] for task in removed.document["tasks"]], [PARENT, SIBLING])
 
-    def test_deletion_reports_dependent_task_details(self) -> None:
+    def test_deletion_removes_every_dependency_reference(self) -> None:
         initial = self.service.load()
         nested = self.service.move_task(
             initial.revision,
@@ -124,9 +123,32 @@ class WebApplicationTest(unittest.TestCase):
             before_id=None,
             context_category="work",
         )
-        with self.assertRaises(TaskRequiredError) as raised:
-            self.service.remove_task(nested.revision, SIBLING)
-        self.assertEqual(raised.exception.blockers[0]["id"], PARENT)
+        third = self.service.add_task(
+            nested.revision,
+            name="Second parent",
+            categories=("work",),
+            priority="must",
+            parent_id=None,
+            after_id=PARENT,
+            context_category="work",
+        )
+        shared = self.service.move_task(
+            third.snapshot.revision,
+            SIBLING,
+            old_parent_id=PARENT,
+            new_parent_id=third.task_id,
+            after_id=None,
+            before_id=None,
+            context_category="work",
+        )
+        first_parent = next(task for task in shared.document["tasks"] if task["id"] == PARENT)
+        first_parent["dependencies"].append(SIBLING)
+        self.path.write_text(json.dumps(shared.document, indent=2) + "\n")
+        shared = self.service.load()
+        removed = self.service.remove_task(shared.revision, SIBLING)
+        self.assertEqual(removed.document["tasks"][0]["dependencies"], [])
+        self.assertTrue(all(SIBLING not in task["dependencies"] for task in removed.document["tasks"]))
+        self.assertEqual(len(removed.document["tasks"]), 2)
 
     def test_rejects_stale_revision_without_changing_file(self) -> None:
         initial = self.service.load()
@@ -138,13 +160,19 @@ class WebApplicationTest(unittest.TestCase):
 
     def test_rejects_invalid_nesting_without_changing_file(self) -> None:
         initial = self.service.load()
+        lowered = self.service.edit_task(
+            initial.revision,
+            SIBLING,
+            priority_supplied=True,
+            priority="should",
+        )
         before = self.path.read_bytes()
         with self.assertRaises(WebEditError):
             self.service.move_task(
-                initial.revision,
-                PARENT,
+                lowered.revision,
+                SIBLING,
                 old_parent_id=None,
-                new_parent_id=SIBLING,
+                new_parent_id=PARENT,
                 after_id=None,
                 before_id=None,
                 context_category="work",

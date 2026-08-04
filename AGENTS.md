@@ -60,9 +60,13 @@ inference.
 
 - Task IDs are unique canonical UUIDv4 strings.
 - Dependency and category references resolve uniquely.
-- Dependencies are acyclic and may have the same or lower priority than their parents.
+- Dependencies are acyclic and must have the same or higher urgency than their
+  parents. Unprioritized dependencies are valid only for Could or unprioritized
+  parents.
 - Completed tasks have no incomplete dependencies.
 - Category assignment is explicit and independent of dependency relationships.
+- Global task deletion atomically removes all incoming dependency references;
+  occurrence-specific detachment removes only the displayed parent edge.
 - Ambiguity is an error; `--strict` promotes advisory warnings to errors.
 
 ## Verification

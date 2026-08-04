@@ -61,7 +61,7 @@ class AddTodoTest(unittest.TestCase):
             name="New task",
             category_selectors=["work"],
             priority_policy=self.bundle.priority_policy,
-            priority="must",
+            priority="should",
             dependency_selectors=["Existing dependency"],
             ids=TaskIdSource(lambda: next(values)),
         )
@@ -86,7 +86,7 @@ class AddTodoTest(unittest.TestCase):
                     "--category",
                     "work",
                     "--priority",
-                    "must",
+                    "should",
                     "--depends-on",
                     "Existing dependency",
                     "--description",
@@ -126,7 +126,7 @@ class AddTodoTest(unittest.TestCase):
                     "--category",
                     "work",
                     "--priority",
-                    "could",
+                    "must",
                     "--depends-on",
                     "Existing dependency",
                 ],
@@ -135,7 +135,7 @@ class AddTodoTest(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(result.returncode, 1)
-            self.assertIn("higher priority", result.stderr)
+            self.assertIn("less urgent", result.stderr)
             self.assertEqual(path.read_bytes(), before)
 
     def test_priority_help_comes_from_schema_policy(self) -> None:
@@ -156,7 +156,7 @@ class AddTodoTest(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(ROOT / "bin" / "todo"), "task", "add", str(path),
-                    "New dependency", "--category", "work", "--priority", "could",
+                    "New dependency", "--category", "work", "--priority", "should",
                     "--dependency-of", "Existing dependency",
                 ],
                 cwd=ROOT,

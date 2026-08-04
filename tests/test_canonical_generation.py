@@ -27,7 +27,7 @@ def previous_document() -> TodoList:
             {
                 "id": "00000000-0000-4000-8000-000000000001",
                 "name": "Incomplete parent",
-                "priority": "must",
+                "priority": "could",
                 "completed": False,
                 "dependencies": ["00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"],
             },

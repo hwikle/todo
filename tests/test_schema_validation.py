@@ -36,7 +36,7 @@ def valid_document() -> TodoList:
         "date": "2042-01-02",
         "tasks": [
             task("00000000-0000-4000-8000-000000000001", "Parent", dependencies=["00000000-0000-4000-8000-000000000002"]),
-            task("00000000-0000-4000-8000-000000000002", "Dependency", priority="should"),
+            task("00000000-0000-4000-8000-000000000002", "Dependency", priority="must"),
         ],
         "categories": [{"id": "work", "display_name": "Work"}],
         "category_memberships": [
@@ -98,11 +98,17 @@ class CanonicalValidationTest(unittest.TestCase):
         document["tasks"][0]["completed"] = True
         self.assertTrue(any("incomplete dependency" in item for item in self.errors(document)))
 
-    def test_dependency_cannot_have_higher_priority(self) -> None:
+    def test_dependency_cannot_be_less_urgent(self) -> None:
         document = valid_document()
+        document["tasks"][1]["priority"] = "should"
+        self.assertTrue(any("less urgent than task priority" in item for item in self.errors(document)))
+
+        document = valid_document()
+        document["tasks"][1].pop("priority")
+        self.assertTrue(any("unprioritized dependency is less urgent" in item for item in self.errors(document)))
+
         document["tasks"][0]["priority"] = "could"
-        document["tasks"][1]["priority"] = "must"
-        self.assertTrue(any("higher than task priority" in item for item in self.errors(document)))
+        self.assertFalse(any("unprioritized dependency is less urgent" in item for item in self.errors(document)))
 
     def test_duplicate_membership_is_an_error(self) -> None:
         document = valid_document()

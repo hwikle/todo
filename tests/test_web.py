@@ -143,7 +143,30 @@ class WebAdapterTest(unittest.TestCase):
         remaining = removed.get_json()["document"]["tasks"]
         self.assertEqual([(task["id"], task["name"]) for task in remaining], [(TASK_ID, "Task")])
 
-    def test_delete_reports_the_exact_parent_blocker(self) -> None:
+    def test_add_preserves_name_and_description_as_separate_fields(self) -> None:
+        payload = self.snapshot()
+        response = self.client.post(
+            "/api/tasks",
+            json={
+                "revision": payload["revision"],
+                "name": "Named task",
+                "description": "Separate details",
+                "categories": ["work"],
+                "priority": "should",
+                "parent_id": None,
+                "after_id": TASK_ID,
+                "context_category": "work",
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        created = next(
+            task for task in response.get_json()["document"]["tasks"]
+            if task["id"] == response.get_json()["created_id"]
+        )
+        self.assertEqual(created["name"], "Named task")
+        self.assertEqual(created["description"], "Separate details")
+
+    def test_delete_removes_the_task_from_its_parent(self) -> None:
         payload = self.snapshot()
         added = self.client.post(
             "/api/tasks",
@@ -151,7 +174,7 @@ class WebAdapterTest(unittest.TestCase):
                 "revision": payload["revision"],
                 "name": "Task",
                 "categories": ["work"],
-                "priority": "could",
+                "priority": "should",
                 "parent_id": TASK_ID,
                 "after_id": None,
                 "context_category": "work",
@@ -161,9 +184,10 @@ class WebAdapterTest(unittest.TestCase):
             f"/api/tasks/{added['created_id']}",
             json={"revision": added["revision"]},
         )
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.get_json()["code"], "task_required")
-        self.assertEqual(response.get_json()["blockers"][0]["id"], TASK_ID)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        tasks = response.get_json()["document"]["tasks"]
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["dependencies"], [])
 
     def test_patch_autosaves_to_the_explicit_file(self) -> None:
         payload = self.snapshot()

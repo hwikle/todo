@@ -242,17 +242,7 @@
     </div>`).join("");
   }
   function showError(error) {
-    if (error.code === "task_required" && error.details?.blockers && documentState) {
-      const categories = categoryMap();
-      const blockers = error.details.blockers.map(blocker => {
-        const context = [
-          blocker.categories.map(id => categories.get(id)?.display_name || id).join(", "),
-          blocker.priority ? blocker.priority[0].toUpperCase() + blocker.priority.slice(1) : "Unprioritized"
-        ].filter(Boolean).join(" · ");
-        return `${blocker.name}${context ? ` (${context})` : ""}`;
-      });
-      message.textContent = `Cannot delete this task. Outdent it from: ${blockers.join("; ")}.`;
-    } else message.textContent = error.message;
+    message.textContent = error.message;
     message.hidden = false; saveStatus.textContent = "Not saved";
   }
   function clearError() { message.hidden = true; message.textContent = ""; }
@@ -287,6 +277,7 @@
     task._persistPromise = queueSave(() => requestJson("/api/tasks", {method: "POST", body: JSON.stringify({
       revision,
       name: task.name.trim(),
+      description: task.description?.trim() || null,
       categories: task._categories,
       priority: task.priority || null,
       parent_id: task._parentId,
@@ -523,8 +514,11 @@
     if (remove) {
       const row = remove.closest(".task-row");
       const task = taskMap().get(row.dataset.id);
+      const dependents = documentState.tasks.filter(item => item.dependencies.includes(task.id));
       pendingDeletion = {id: task.id, parentId: row.dataset.parent || null, category: row.dataset.category || null};
-      deleteContext.textContent = `${task.name} · ${task.priority ? task.priority[0].toUpperCase() + task.priority.slice(1) : "Unprioritized"}`;
+      deleteContext.textContent = dependents.length
+        ? `Delete ${task.name} everywhere? It will also be removed as a dependency from: ${dependents.map(item => item.name).join(", ")}.`
+        : `Delete ${task.name} everywhere?`;
       detachTaskButton.hidden = !pendingDeletion.parentId;
       deleteDialog.showModal();
     }
@@ -595,7 +589,9 @@
     if (!event.target.matches(".task-name, .task-description")) return;
     const task = taskMap().get(id);
     if (task._draft) {
-      task.name = event.target.value;
+      if (event.target.matches(".task-name")) task.name = event.target.value;
+      else if (event.target.value) task.description = event.target.value;
+      else delete task.description;
       return;
     }
     if (event.target.matches(".task-name")) task.name = event.target.value;
@@ -620,7 +616,11 @@
     const id = row.dataset.id;
     const task = taskMap().get(id);
     if (task?._draft) {
-      task.name = input.value;
+      if (input.matches(".task-name")) task.name = input.value;
+      else if (input.value) task.description = input.value;
+      else delete task.description;
+      if (input.matches(".task-name") && openDescriptions.has(id)) return;
+      if (row.contains(event.relatedTarget)) return;
       persistDraft(id, false);
       return;
     }
