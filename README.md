@@ -92,7 +92,9 @@ sibling, Tab to make it a subtask of the preceding task, Shift+Tab to move it
 out one level, Shift+Enter to add or focus its description, and Option+Up or
 Option+Down to reorder it in manual sort mode. Empty categories
 contain a blank editable line for their first task. Blank new lines remain local
-to the browser until named. Categories can be added, renamed, reordered, and
+to the browser; named new tasks are created when Enter is pressed or focus
+leaves the line. Empty description editors disappear without creating a
+description. Categories can be added, renamed, reordered, and
 removed from the checklist; a category must be empty before removal. Category
 and priority filters can be combined;
 matching tasks are the primary results, while all of their transitive

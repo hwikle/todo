@@ -166,6 +166,14 @@ class WebApplicationTest(unittest.TestCase):
         self.assertEqual(task["description"], "Details")
         self.assertNotIn("priority", task)
 
+        cleared = self.service.edit_task(
+            result.revision,
+            PARENT,
+            description_supplied=True,
+            description=None,
+        )
+        self.assertNotIn("description", cleared.document["tasks"][0])
+
     def test_reorders_and_detaches_tasks_by_identity(self) -> None:
         initial = self.service.load()
         reordered = self.service.reorder_task(

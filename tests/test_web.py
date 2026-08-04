@@ -165,6 +165,20 @@ class WebAdapterTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertEqual(json.loads(self.path.read_text())["tasks"][0]["name"], "Renamed")
 
+    def test_empty_description_clears_the_canonical_field(self) -> None:
+        payload = self.snapshot()
+        described = self.client.patch(
+            f"/api/tasks/{TASK_ID}",
+            json={"revision": payload["revision"], "description": "Details"},
+        ).get_json()
+        cleared = self.client.patch(
+            f"/api/tasks/{TASK_ID}",
+            json={"revision": described["revision"], "description": None},
+        )
+        self.assertEqual(cleared.status_code, 200, cleared.get_json())
+        self.assertNotIn("description", cleared.get_json()["document"]["tasks"][0])
+        self.assertNotIn("description", json.loads(self.path.read_text())["tasks"][0])
+
     def test_stale_edit_returns_conflict(self) -> None:
         payload = self.snapshot()
         self.path.write_text(self.path.read_text() + " ")

@@ -133,7 +133,7 @@
         <div class="task-fields">
           <button type="button" class="task-rendered task-name-rendered" ${draft ? "hidden" : ""} aria-label="Edit task name">${inlineMarkup(task.name)}</button>
           <input class="task-name" value="${escapeHtml(task.name)}" placeholder="New task" aria-label="Task name" ${draft ? "" : "hidden"}>
-          ${descriptionShown ? `<button type="button" class="task-rendered task-description-rendered" aria-label="Edit task description">${inlineMarkup(task.description || "Description")}</button><input class="task-description" value="${escapeHtml(task.description || "")}" placeholder="Description" aria-label="Task description" hidden>` : ""}
+          ${descriptionShown ? `<button type="button" class="task-rendered task-description-rendered" aria-label="Edit task description" ${task.description ? "" : "hidden"}>${inlineMarkup(task.description || "")}</button><input class="task-description" value="${escapeHtml(task.description || "")}" placeholder="Description" aria-label="Task description" ${task.description ? "hidden" : ""}>` : ""}
         </div>
         ${draft ? `<div class="task-meta"></div>` : `<div class="task-meta">${grouping.value !== "priority" ? `<span class="priority-indicator">${escapeHtml(task.priority ? task.priority[0].toUpperCase() + task.priority.slice(1) : "Unprioritized")}</span>` : ""}${task.due ? `<span class="due ${task.deadline_kind || ""}">${escapeHtml(dueText(task))}</span>` : ""}
           <div class="task-menu"><button class="menu-toggle" type="button" aria-label="Task options" aria-expanded="false">···</button>
@@ -163,7 +163,40 @@
       <input class="empty-category-name" placeholder="New task" aria-label="New task in ${escapeHtml(categoryMap().get(categoryId).display_name)}">
     </div>`;
   }
+  function activeEditorState() {
+    const input = document.activeElement;
+    if (!input?.matches?.(".task-name, .task-description")) return null;
+    const row = input.closest(".task-row");
+    return {
+      id: row.dataset.id,
+      parentId: row.dataset.parent || null,
+      category: row.dataset.category || null,
+      field: input.matches(".task-name") ? "task-name" : "task-description",
+      value: input.value,
+      selectionStart: input.selectionStart,
+      selectionEnd: input.selectionEnd
+    };
+  }
+  function restoreEditor(state) {
+    const parent = CSS.escape(state.parentId || "");
+    const category = CSS.escape(state.category || "");
+    const target = checklist.querySelector(`.task-row[data-id="${CSS.escape(state.id)}"][data-parent="${parent}"][data-category="${category}"] .${state.field}`)
+      || checklist.querySelector(`.task-row[data-id="${CSS.escape(state.id)}"] .${state.field}`);
+    if (!target) return;
+    const rendered = target.parentElement.querySelector(state.field === "task-name" ? ".task-name-rendered" : ".task-description-rendered");
+    if (rendered) rendered.hidden = true;
+    target.hidden = false;
+    if (state.value !== undefined) target.value = state.value;
+    target.focus();
+    if (state.select) target.select();
+    else if (target.setSelectionRange) {
+      const start = state.selectionStart ?? target.value.length;
+      const end = state.selectionEnd ?? start;
+      target.setSelectionRange(start, end);
+    }
+  }
   function render() {
+    const activeEditor = activeEditorState();
     const tasks = taskMap();
     const primary = new Set(primaryIds());
     const visible = visibleIds(primary, tasks);
@@ -184,18 +217,9 @@
       groups.push(["", sortedIds(roots(primary, tasks), tasks), null]);
     }
     checklist.innerHTML = groups.length ? groups.map(([label, ids, category]) => `<section class="check-group">${label ? `<h2 class="group-title">${escapeHtml(label)}</h2>` : ""}${ids.length ? ids.map(id => renderBranch(id, null, category, primary, visible, tasks)).join("") : category ? renderEmptyCategory(category) : `<p class="empty">No tasks match these filters.</p>`}</section>`).join("") : `<p class="empty">No tasks match these filters.</p>`;
-    if (focusRequest) {
-      const parent = CSS.escape(focusRequest.parentId || "");
-      const category = CSS.escape(focusRequest.category || "");
-      const target = checklist.querySelector(`.task-row[data-id="${CSS.escape(focusRequest.id)}"][data-parent="${parent}"][data-category="${category}"] .${focusRequest.field}`)
-        || checklist.querySelector(`.task-row[data-id="${CSS.escape(focusRequest.id)}"] .${focusRequest.field}`);
-      if (target) {
-        target.focus();
-        if (focusRequest.select) target.select();
-        else if (target.setSelectionRange) target.setSelectionRange(target.value.length, target.value.length);
-      }
-      focusRequest = null;
-    }
+    const editorToRestore = focusRequest || activeEditor;
+    if (editorToRestore) restoreEditor(editorToRestore);
+    focusRequest = null;
   }
   function renderFilters() {
     categoryFilters.querySelectorAll("button").forEach(button => button.remove());
@@ -251,10 +275,11 @@
     for (const membership of documentState.category_memberships) membership.tasks = membership.tasks.filter(taskId => taskId !== id);
     render();
   }
-  function persistDraft(id) {
+  function persistDraft(id, restoreFocus = true) {
     const task = taskMap().get(id);
     if (!task?._draft || !task.name.trim()) return Promise.resolve(null);
-    return queueSave(() => requestJson("/api/tasks", {method: "POST", body: JSON.stringify({
+    if (task._persistPromise) return task._persistPromise;
+    task._persistPromise = queueSave(() => requestJson("/api/tasks", {method: "POST", body: JSON.stringify({
       revision,
       name: task.name.trim(),
       categories: task._categories,
@@ -264,25 +289,28 @@
       context_category: task._contextCategory
     })}), false).then(data => {
       const created = data.document.tasks.find(item => item.id === data.created_id) || null;
-      if (created) focusRequest = {id: created.id, field: "task-name", parentId: task._parentId, category: task._contextCategory};
+      if (created && restoreFocus) focusRequest = {id: created.id, field: "task-name", parentId: task._parentId, category: task._contextCategory};
       render();
       return created;
     });
+    return task._persistPromise;
   }
-  function persistEmptyCategory(row) {
+  function persistEmptyCategory(row, restoreFocus = true) {
     const name = row.querySelector(".empty-category-name").value.trim();
     if (!name) return Promise.resolve(null);
+    if (row._persistPromise) return row._persistPromise;
     const category = row.dataset.category;
     const priority = row.dataset.priority || null;
-    return queueSave(() => requestJson("/api/tasks", {method: "POST", body: JSON.stringify({
+    row._persistPromise = queueSave(() => requestJson("/api/tasks", {method: "POST", body: JSON.stringify({
       revision, name, categories: [category], priority,
       parent_id: null, after_id: null, context_category: category
     })}), false).then(data => {
       const created = data.document.tasks.find(item => item.id === data.created_id) || null;
-      if (created) focusRequest = {id: created.id, field: "task-name", parentId: null, category};
+      if (created && restoreFocus) focusRequest = {id: created.id, field: "task-name", parentId: null, category};
       render();
       return created;
     });
+    return row._persistPromise;
   }
   function closeMenus(except = null) {
     document.querySelectorAll(".menu-panel").forEach(panel => { if (panel !== except) panel.hidden = true; });
@@ -543,8 +571,6 @@
   checklist.addEventListener("input", event => {
     const emptyRow = event.target.closest(".empty-category-row");
     if (emptyRow && event.target.matches(".empty-category-name")) {
-      clearTimeout(timers.get(event.target));
-      timers.set(event.target, setTimeout(() => persistEmptyCategory(emptyRow), 650));
       return;
     }
     const row = event.target.closest(".task-row"); if (!row) return;
@@ -553,22 +579,51 @@
     const task = taskMap().get(id);
     if (task._draft) {
       task.name = event.target.value;
-      clearTimeout(timers.get(event.target));
-      timers.set(event.target, setTimeout(() => persistDraft(id), 650));
       return;
     }
-    clearTimeout(timers.get(event.target));
-    timers.set(event.target, setTimeout(() => {
+    if (event.target.matches(".task-name")) task.name = event.target.value;
+    else if (event.target.value) task.description = event.target.value;
+    else delete task.description;
+    const timerKey = `${id}:${event.target.matches(".task-name") ? "name" : "description"}`;
+    clearTimeout(timers.get(timerKey));
+    timers.set(timerKey, setTimeout(() => {
       const fields = event.target.matches(".task-name") ? {name: event.target.value} : {description: event.target.value || null};
       patchTask(id, fields);
     }, 650));
   });
   checklist.addEventListener("focusout", event => {
-    if (!event.target.matches(".task-name, .task-description") || event.target.closest(".task-row")?.dataset.id.startsWith("draft-")) return;
+    const emptyRow = event.target.closest(".empty-category-row");
+    if (emptyRow && event.target.matches(".empty-category-name")) {
+      persistEmptyCategory(emptyRow, false);
+      return;
+    }
+    if (!event.target.matches(".task-name, .task-description")) return;
     const input = event.target;
+    const row = input.closest(".task-row");
+    const id = row.dataset.id;
+    const task = taskMap().get(id);
+    if (task?._draft) {
+      task.name = input.value;
+      persistDraft(id, false);
+      return;
+    }
+    const field = input.matches(".task-name") ? "name" : "description";
+    const timerKey = `${id}:${field}`;
+    clearTimeout(timers.get(timerKey));
+    timers.delete(timerKey);
+    if (field === "description" && !input.value.trim()) {
+      openDescriptions.delete(id);
+      delete task.description;
+      patchTask(id, {description: null});
+      input.parentElement.querySelector(".task-description-rendered")?.remove();
+      input.remove();
+      return;
+    }
+    if (field === "description") openDescriptions.delete(id);
+    patchTask(id, field === "name" ? {name: input.value} : {description: input.value});
     const rendered = input.parentElement.querySelector(input.matches(".task-name") ? ".task-name-rendered" : ".task-description-rendered");
     if (!rendered) return;
-    rendered.innerHTML = inlineMarkup(input.value || (input.matches(".task-description") ? "Description" : ""));
+    rendered.innerHTML = inlineMarkup(input.value);
     input.hidden = true; rendered.hidden = false;
   });
   checklist.addEventListener("change", event => {
@@ -590,13 +645,16 @@
   checklist.addEventListener("keydown", event => {
     const emptyRow = event.target.closest(".empty-category-row");
     if (emptyRow && event.target.matches(".empty-category-name") && event.key === "Enter") {
-      event.preventDefault(); clearTimeout(timers.get(event.target));
-      persistEmptyCategory(emptyRow).then(created => {
+      event.preventDefault();
+      persistEmptyCategory(emptyRow, false).then(created => {
         if (!created) return;
         const createdRow = checklist.querySelector(`.task-row[data-id="${CSS.escape(created.id)}"]`);
         if (createdRow) addSibling(createdRow);
       });
       return;
+    }
+    if (event.target.matches(".task-description") && event.key === "Escape" && !event.target.value) {
+      event.preventDefault(); event.target.blur(); return;
     }
     if (event.key === "Escape" && !event.target.matches(".task-name")) { closeMenus(); return; }
     if (!event.target.matches(".task-name")) return;
@@ -615,7 +673,6 @@
     if (event.key === "Enter") {
       event.preventDefault();
       if (task._draft) {
-        clearTimeout(timers.get(event.target));
         task.name = event.target.value;
         persistDraft(task.id).then(created => {
           if (!created) return;
