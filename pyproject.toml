@@ -1,22 +1,36 @@
 [project]
-name = "daily-todo"
+name = "yatl"
 version = "0.1.0"
-description = "A local, version-controlled daily TODO workflow"
+description = "Yet Another Todo List"
 requires-python = ">=3.9"
 dependencies = [
-    "Flask>=3,<4",
     "jsonschema>=4,<5",
 ]
 
 [project.optional-dependencies]
+web = [
+    "flask>=3,<4",
+]
+
+[project.scripts]
+yatl = "yatl.main:main"
+
+[dependency-groups]
 dev = [
     "mypy>=1.11,<2",
     "types-jsonschema>=4,<5",
 ]
 
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+data = { data = "share" }
+
 [tool.mypy]
 python_version = "3.9"
-files = ["lib", "tests"]
+files = ["src", "tests"]
 strict = true
 show_error_codes = true
 pretty = true
